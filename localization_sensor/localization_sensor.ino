@@ -1,8 +1,10 @@
 #include <U8x8lib.h>
 #include "LocationProtocol.h"
 #include "init_configs_tools.h"
-//#include "esp_system.h"
+#include "esp_system.h"
 #include "time_sync.h"
+#include <unordered_map>
+#include <vector>
 #include "wifi_config.h"
 #include "ibeacon_message_handler.h"
 
@@ -16,7 +18,7 @@
 
 #define seconds() (millis()/1000)
 #define TERM_SCAN_INTERVAL_MILLIS 1000
-#define TEMP_ACCEPTANCE_INTERVAL 0.05
+#define DIST_ACCEPTANCE_INTERVAL 1.5
 #define SERVER_UPDATE_INTERVAL_SECONDS 60
 #define RAM_REF_INTERVAL_MILLIS 1000
 
@@ -36,8 +38,6 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset=*/
 MacAddress address;
 
 request_instance_t requestUpdate = { "messages.geisoft.org" , "/services/beacontrace/feedtemp" , "" , "POST"};
-
-//std::unordered_map<uint64_t, float> tempMap;
 
 unsigned long autonomousTermometerLastSensorRead;
 unsigned long nodeLastCollectionSent;
@@ -116,6 +116,15 @@ void loop() {
   if(deviceType == DEVICE_TYPE_INVALID){
     delay(1000);
   } else {
+
+    #ifdef HELTEC_WIFI_LORA_32_BT
+        if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
+          u8x8.drawString(0, 4 , "Free RAM");
+          u8x8.clearLine(5);
+          u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
+          lastRamRef = millis();
+        }
+    #endif
     
     if(deviceType != DEVICE_TYPE_TERMOMETER){
       checkIncoming();
@@ -125,33 +134,8 @@ void loop() {
         
         nodeLastCollectionSent = seconds();
       }*/
-      #ifdef HELTEC_WIFI_LORA_32_BT
-        if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
-          u8x8.drawString(0, 4 , "Free RAM");
-          u8x8.clearLine(5);
-          u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
-          lastRamRef = millis();
-        }
-      #endif
-      
       delay(10);
     }
-    
-    /*if(deviceType != DEVICE_TYPE_NODE){
-       float temperature = getTemp();
-       if(temperature != -1000 && temperature != 85){
-        if(deviceType == DEVICE_TYPE_TERMOMETER){
-          u8x8.drawString(0, 4 , "Free RAM");
-          u8x8.clearLine(5);
-          u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
-          sendLoraTemperaturePacket(temperature);
-        }
-        if(deviceType == DEVICE_TYPE_AUTONOMOUS_TERMOMETER && (millis() - autonomousTermometerLastSensorRead >= TERM_SCAN_INTERVAL_MILLIS) ){
-          addScanToCollection(address, temperature, getCurrentTime());
-          autonomousTermometerLastSensorRead = millis();
-        }
-       }
-    }*/
   }
 }
 
@@ -159,8 +143,7 @@ void handleResponsePacket(Packet packet) {
     if(isLocationScanPacket(packet.type, packet.packetLength)){
        //readTempAndSendToServerIfNecessary(&packet);
        packet.printPacket();
-       ibeacon_instance_t beacon = decodeBeaconFromPacket((uint8_t*)packet.body);
-       distanceScanCompletedCallback(&beacon);
+       distanceScanCompletedCallback(address, decodeBeaconFromPacket((uint8_t*)packet.body));
     }
     Serial.println("packet");
 }
