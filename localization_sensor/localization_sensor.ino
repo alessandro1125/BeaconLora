@@ -159,7 +159,7 @@ void handleResponsePacket(Packet packet) {
     if(isLocationScanPacket(packet.type, packet.packetLength)){
        //readTempAndSendToServerIfNecessary(&packet);
        packet.printPacket();
-       distanceScanCompletedCallback(&decodeBeaconFromPacket(packet.data()));
+       distanceScanCompletedCallback(&decodeBeaconFromPacket(packet.body));
     }
     Serial.println("packet");
 }
