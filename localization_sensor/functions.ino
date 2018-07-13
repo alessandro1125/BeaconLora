@@ -1,7 +1,7 @@
 
 void distanceScanCompletedCallback(ibeacon_instance_t* beacon){
   Serial.println("Scansion ricevuta");
-  auto got = scansMap.find(senderAddress.value);
+  /*auto got = scansMap.find(senderAddress.value);
   if(got == scansMap.end()){
     Serial.println("Adding device to collection");
     ScansCollection toInsert = ScansCollection();
@@ -19,7 +19,7 @@ void distanceScanCompletedCallback(ibeacon_instance_t* beacon){
     (*vec).push_back({temperature, timestamp});
     Serial.println("temperatura aggiunta");
   }else
-    Serial.println("Temperatura costante");
+    Serial.println("Temperatura costante");*/
 }
 
 void sendCollectionToServer(){
