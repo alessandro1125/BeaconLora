@@ -67,7 +67,7 @@ void setup() {
   }
   initWithConfigParams(user_params, U8X8_POINTER(), true);// dopo ci  va true
 
-  if(deviceType != DEVICE_TYPE_AUTONOMOUS_TERMOMETER
+  if(deviceType != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     initLoRa(address, SS, RST, DI0);
 
   if(deviceType != DEVICE_TYPE_TERMOMETER){
