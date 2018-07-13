@@ -6,11 +6,13 @@
 #include "wifi_config.h"
 #include "ibeacon_message_handler.h"
 
+//#define ESP32
+#define HELTEC_WIFI_LORA_32_BT
+
 #define SS      18
 #define RST     14
 #define DI0     26
 #define BAND    868E6
-
 
 #define seconds() (millis()/1000)
 #define TERM_SCAN_INTERVAL_MILLIS 1000
