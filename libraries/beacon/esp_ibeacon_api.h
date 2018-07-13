@@ -3,10 +3,8 @@
 #define ESP_IBEACON_API_H
 
 #include <stdint.h>
-
+#include <cstring>
 #include "esp_gap_ble_api.h"
-
-#include "http_helper.h"
 
 //Max num of scanning beacon
 #define MAX_SCANNING_BEACONS 20

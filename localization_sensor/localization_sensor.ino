@@ -1,13 +1,21 @@
+#include <U8x8lib.h>
 #include "ibeacon_message_handler.h"
 #include "LoRaProtocol.h"
+//#include "time_sync.h"
 
 #define SS      18
 #define RST     14
 #define DI0     26
 #define BAND    868E6
 
+U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset=*/ 16);
 
 void setup() {
+
+  u8x8.begin();
+  u8x8.setFont(u8x8_font_chroma48medium8_r);
+  u8x8.drawString(0, 1, "Initializing");
+  Serial.begin(115200);
   
   uint8_t mac[6];
   esp_efuse_mac_get_default(mac);
@@ -18,6 +26,8 @@ void setup() {
   node = MacAddress((uint64_t)0);
   
   initLoRa(address, SS, RST, DI0);
+
+  //initTimeSync(&u8x8);  
 
   ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
   esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();

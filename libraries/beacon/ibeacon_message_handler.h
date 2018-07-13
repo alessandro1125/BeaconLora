@@ -9,12 +9,12 @@
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00)>>8) + (((x)&0xFF)<<8))
 
 #define LOCATION_SCAN_PACKET_LENGTH 3
-#define PACKET_TYPE_LOCATION_SCAN 5
+#define PACKET_TYPE_LOCATION_SCAN 8
 
 extern MacAddress address;
 extern MacAddress node;
 
-void ble_ibeacon_appRegister(void);
+void ble_ibeacon_appRegister();
 void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
 void handle_received_packet(esp_ble_gap_cb_param_t *scan_result, ibeacon_instance_t* ibeacon_scanned_list);

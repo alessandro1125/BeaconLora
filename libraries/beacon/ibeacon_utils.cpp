@@ -1,7 +1,6 @@
 #include "ibeacon_utils.h"
 
 RSSI_params_t rssi_params;
-long seconds_since_epoch;
 
 esp_ble_scan_params_t ble_scan_params = {
     .scan_type              = BLE_SCAN_TYPE_ACTIVE,
@@ -22,25 +21,7 @@ esp_ble_scan_params_t ble_scan_params = {
 void init_utils(){
 	esp_ble_gap_set_scan_params(&ble_scan_params);
 	init_RSSI_params();     
-    init_time_sync();                   
-}
-
-void init_time_sync(){
-    request_instance_t request_instance;
-    request_instance.web_host = "messages.geisoft.org";
-    request_instance.web_port = 80;
-    request_instance.web_path = "/services/beacontrace/sincrotime";
-    request_instance.method = "GET";
-    request_instance.body = "";
-    get_response(&request_instance, &time_sync_callback);
-}
-
-void time_sync_callback(char* response){
-    seconds_since_epoch = get_server_time_from_json(response);
-    Serial.printf("seconds since epoch %ld \n",seconds_since_epoch);
-    time_t now;
-    time(&now);
-    seconds_since_epoch -= now;  //perchè dopo riaggiungo now nel conto
+                     
 }
 
 int uuid_compare(uint8_t* uuid1, uint8_t* uuid2, size_t size){
@@ -84,23 +65,6 @@ float avg_rssi(int8_t* misurations, size_t size){
     return misurations[mode_index];
 }
 
-long get_server_time_from_json(const char* const json_string){
-    cJSON *json = cJSON_Parse(json_string);
-    if(json == NULL){
-        const char *error_ptr = cJSON_GetErrorPtr();
-        if (error_ptr != NULL)
-        {
-            Serial.printf("Error before: %s\n", error_ptr);
-        }
-        return -1;
-    }
-    const cJSON* serverTime = cJSON_GetObjectItem(json,"serverTime");
-    if(cJSON_IsNumber(serverTime))
-        return serverTime->valueint;
-    cJSON_Delete(json);
-    //return serverTime;
-    return -1;
-}
 
 void distance_calculator(float rssiMeasured, float *distance){
     *distance = -1;
@@ -132,7 +96,7 @@ void init_RSSI_params() {
 }
 
 void send_distance_to_server(ibeacon_instance_t* beacon){
-    char* json = generate_json_data(beacon);
+    /*char* json = generate_json_data(beacon);
 	Serial.printf("%s \n",json);
     request_instance_t request_instance;
     request_instance.web_host = "messages.geisoft.org";
@@ -140,7 +104,7 @@ void send_distance_to_server(ibeacon_instance_t* beacon){
     request_instance.web_path = "/services/beacontrace/feedposition";
     request_instance.method = "POST";
     request_instance.body = json;
-    get_response(&request_instance, &distance_sent_callback);
+    get_response(&request_instance, &distance_sent_callback);*/
 }
 
 void distance_sent_callback(char* response){

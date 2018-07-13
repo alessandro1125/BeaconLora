@@ -3,7 +3,7 @@
 MacAddress address;
 MacAddress node;
 
-void ble_ibeacon_appRegister(void){                                          
+void ble_ibeacon_appRegister(){                                          
     esp_err_t status;
     //Serial.println(  "register callback");
     //register the scan callback function to the gap module

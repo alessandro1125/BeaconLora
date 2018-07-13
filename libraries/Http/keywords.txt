@@ -1,0 +1,5 @@
+initTimeSync KEYWORD2
+getCurrentTime KEYWORD2
+request_instance_t KEYWORD1
+registerWifi KEYWORD2
+getHttpResponse KEYWORD2
