@@ -5,12 +5,8 @@
 #include <stdint.h>
 #include "esp_ibeacon_api.h"
 #include "esp_bt.h"
-#include "esp_gattc_api.h"
-#include "esp_gatt_defs.h"
 #include "esp_bt_main.h"
 #include <Arduino.h>
-
-#include <sys/time.h>
 
 #define pi 3.14159265358979323846
 

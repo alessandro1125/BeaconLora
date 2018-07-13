@@ -1,41 +1,154 @@
 #include <U8x8lib.h>
+#include "LocationProtocol.h"
+#include "init_configs_tools.h"
+//#include "esp_system.h"
+#include "time_sync.h"
+#include "wifi_config.h"
 #include "ibeacon_message_handler.h"
-#include "LoRaProtocol.h"
-//#include "time_sync.h"
 
 #define SS      18
 #define RST     14
 #define DI0     26
 #define BAND    868E6
 
+
+#define seconds() (millis()/1000)
+#define TERM_SCAN_INTERVAL_MILLIS 1000
+#define TEMP_ACCEPTANCE_INTERVAL 0.05
+#define SERVER_UPDATE_INTERVAL_SECONDS 60
+#define RAM_REF_INTERVAL_MILLIS 1000
+
+// the OLED used
 U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset=*/ 16);
+MacAddress address;
+
+request_instance_t requestUpdate = { "messages.geisoft.org" , "/services/beacontrace/feedtemp" , "" , "POST"};
+
+//std::unordered_map<uint64_t, float> tempMap;
+
+unsigned long autonomousTermometerLastSensorRead;
+unsigned long nodeLastCollectionSent;
+unsigned long lastRamRef;
 
 void setup() {
+  
+  initSPISerialAndDisplay();
+  init_nvs();
+  //read old configs from memory
+  config_params_t config_params = readConfigsFromMemory();
+  Serial.println(config_params.type);
+  //codice per il softAP
+  readMacAddress();
+  init(&config_params, address.toString(), &u8x8);
+  config_params_t * user_params = clientListener();
+  //qui ho le config giuste 
+  u8x8.clearDisplay();
+  if(user_params->type == DEVICE_TYPE_INVALID){
+    deviceType = DEVICE_TYPE_INVALID;
+    u8x8.clearLine(1);
+    u8x8.drawString(0, 1, "Reboot required");
+    return;
+  }
+  initWithConfigParams(user_params, &u8x8, true);// dopo ci  va true
+  u8x8.clearLine(1);
+  u8x8.drawString(0, 1, "Config done.");
+  initLoRa(address, SS, RST, DI0);
+  u8x8.clearLine(1);
+  u8x8.drawString(0, 1, "Init time");
+  if(deviceType != DEVICE_TYPE_TERMOMETER){
+    initTimeSync(&u8x8);
+    subscribeToReceivePacketEvent(handleResponsePacket);
+  }
 
+  //ble init
+  if(user_params->type != DEVICE_TYPE_NODE){
+    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
+    esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+    esp_bt_controller_init(&bt_cfg);
+    esp_bt_controller_enable(ESP_BT_MODE_BLE);
+    ble_ibeacon_init();
+  }
+  //end ble init
+  
+  u8x8.clearLine(1);
+  u8x8.drawString(0, 1, "Ready");
+  printMACAddressToScreen(6);
+  delay(1000);  
+}
+
+void initSPISerialAndDisplay(){
+  SPI.begin(5, 19, 27, 18);
   u8x8.begin();
   u8x8.setFont(u8x8_font_chroma48medium8_r);
   u8x8.drawString(0, 1, "Initializing");
   Serial.begin(115200);
-  
+}
+
+void readMacAddress(){
   uint8_t mac[6];
   esp_efuse_mac_get_default(mac);
   Serial.println("initializing mac");
   address = MacAddress(mac);
   Serial.println(address.toString());
-
-  node = MacAddress((uint64_t)0);
   
-  initLoRa(address, SS, RST, DI0);
+}
 
-  //initTimeSync(&u8x8);  
+void loop() {
+  if(deviceType == DEVICE_TYPE_INVALID){
+    delay(1000);
+  } else {
+    
+    if(deviceType != DEVICE_TYPE_TERMOMETER){
+      checkIncoming();
+      /*if(seconds() - nodeLastCollectionSent >= SERVER_UPDATE_INTERVAL_SECONDS){
+        Serial.println("before sendCollection " + (String(esp_get_free_heap_size()) + " B"));
+        sendCollectionToServer();
+        
+        nodeLastCollectionSent = seconds();
+      }*/
+      /*if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
+        u8x8.drawString(0, 4 , "Free RAM");
+        u8x8.clearLine(5);
+        u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
+        lastRamRef = millis();
+      }*/
+      
+      delay(10);
+    }
+    
+    /*if(deviceType != DEVICE_TYPE_NODE){
+       float temperature = getTemp();
+       if(temperature != -1000 && temperature != 85){
+        if(deviceType == DEVICE_TYPE_TERMOMETER){
+          u8x8.drawString(0, 4 , "Free RAM");
+          u8x8.clearLine(5);
+          u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
+          sendLoraTemperaturePacket(temperature);
+        }
+        if(deviceType == DEVICE_TYPE_AUTONOMOUS_TERMOMETER && (millis() - autonomousTermometerLastSensorRead >= TERM_SCAN_INTERVAL_MILLIS) ){
+          addScanToCollection(address, temperature, getCurrentTime());
+          autonomousTermometerLastSensorRead = millis();
+        }
+       }
+    }*/
+  }
+}
 
-  ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
-  esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-  esp_bt_controller_init(&bt_cfg);
-  esp_bt_controller_enable(ESP_BT_MODE_BLE);
-  ble_ibeacon_init();
-  
+void handleResponsePacket(Packet packet) {
+    if(isLocationScanPacket(packet.type, packet.packetLength)){
+       //readTempAndSendToServerIfNecessary(&packet);
+       packet.printPacket();
+    }
+    Serial.println("packet");
+}
 
+
+void printMACAddressToScreen(int baseRow){
+  char* mc = address.toCharArray();
+  u8x8.drawString(0, baseRow , "MAC");
+  u8x8.clearLine(baseRow + 1);
+  u8x8.drawString(0, baseRow + 1, mc);
+  DELETE_ARRAY(mc)
 }
 
 void ble_ibeacon_init(void)
@@ -45,58 +158,5 @@ void ble_ibeacon_init(void)
     ble_ibeacon_appRegister();
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
 
-}
 
-void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-    esp_err_t err;
-
-    switch (event) {
-        case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:{
-          break;
-        }
-        case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
-            //the unit of the duration is second, 0 means scan permanently
-            printf("scan param set complete\n");
-            uint32_t duration = 0;
-            esp_ble_gap_start_scanning(duration);
-            break;
-        }
-        case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-            //scan start complete event to indicate scan start successfully or failed
-            if ((err = param->scan_start_cmpl.status) != ESP_BT_STATUS_SUCCESS) {
-                ESP_LOGE(DEMO_TAG, "Scan start failed: %s", esp_err_to_name(err));
-            }
-            break;
-        case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-      ESP_LOGI(DEMO_TAG, "Start adv completed");
-            //adv start complete event to indicate adv start successfully or failed
-            if ((err = param->adv_start_cmpl.status) != ESP_BT_STATUS_SUCCESS) {
-                ESP_LOGE(DEMO_TAG, "Adv start failed: %s", esp_err_to_name(err));
-            }
-            break;
-        case ESP_GAP_BLE_SCAN_RESULT_EVT: {
-            esp_ble_gap_cb_param_t *scan_result = (esp_ble_gap_cb_param_t *)param;
-            //gestisce il pacchetto in arrivo
-            handle_received_packet( scan_result, ibeacon_scanned_list );
-            break;
-        }
-
-        case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-            if ((err = param->scan_stop_cmpl.status) != ESP_BT_STATUS_SUCCESS){
-                ESP_LOGE(DEMO_TAG, "Scan stop failed: %s", esp_err_to_name(err));
-            }
-            else {
-                ESP_LOGI(DEMO_TAG, "Stop scan successfully");
-            }
-            break;
-
-        case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
-            break;
-
-        default:
-            break;
-    }
-}
