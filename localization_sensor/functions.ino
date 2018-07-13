@@ -1,7 +1,7 @@
 
 void distanceScanCompletedCallback(ibeacon_instance_t* beacon){
-  Serial.println("Scansion ricevuta");
-  /*auto got = scansMap.find(senderAddress.value);
+  /*Serial.println("Scansion ricevuta");
+  auto got = scansMap.find(senderAddress.value);
   if(got == scansMap.end()){
     Serial.println("Adding device to collection");
     ScansCollection toInsert = ScansCollection();

@@ -125,12 +125,14 @@ void loop() {
         
         nodeLastCollectionSent = seconds();
       }*/
-      /*if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
-        u8x8.drawString(0, 4 , "Free RAM");
-        u8x8.clearLine(5);
-        u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
-        lastRamRef = millis();
-      }*/
+      #ifdef HELTEC_WIFI_LORA_32_BT
+        if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
+          u8x8.drawString(0, 4 , "Free RAM");
+          u8x8.clearLine(5);
+          u8x8.drawString(0, 5 , (String(esp_get_free_heap_size()) + " B").c_str());
+          lastRamRef = millis();
+        }
+      #endif
       
       delay(10);
     }
@@ -157,6 +159,7 @@ void handleResponsePacket(Packet packet) {
     if(isLocationScanPacket(packet.type, packet.packetLength)){
        //readTempAndSendToServerIfNecessary(&packet);
        packet.printPacket();
+       distanceScanCompletedCallback(&decodeBeaconFromPacket(packet.data()));
     }
     Serial.println("packet");
 }
