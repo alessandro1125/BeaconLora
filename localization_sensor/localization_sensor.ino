@@ -159,7 +159,8 @@ void handleResponsePacket(Packet packet) {
     if(isLocationScanPacket(packet.type, packet.packetLength)){
        //readTempAndSendToServerIfNecessary(&packet);
        packet.printPacket();
-       distanceScanCompletedCallback(&decodeBeaconFromPacket(packet.data()));
+       ibeacon_instance_t beacon = decodeBeaconFromPacket((uint8_t*)packet.body);
+       distanceScanCompletedCallback(&beacon);
     }
     Serial.println("packet");
 }
@@ -177,7 +178,7 @@ void ble_ibeacon_init(void)
 {
     esp_bluedroid_init();
     esp_bluedroid_enable();
-    ble_ibeacon_appRegister();
+    ble_ibeacon_appRegister(distanceScanCompletedCallback);
 }
 
 
