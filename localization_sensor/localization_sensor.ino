@@ -17,10 +17,10 @@
 //#define ESP_WROOM_32
 
 #define seconds() (millis()/1000)
-#define TERM_SCAN_INTERVAL_MILLIS 1000
 #define DIST_ACCEPTANCE_INTERVAL 1.5
 #define SERVER_UPDATE_INTERVAL_SECONDS 60
 #define RAM_REF_INTERVAL_MILLIS 1000
+#define BEACON_TIMEOUT_SECONDS 120
 
 // the OLED used
 
@@ -130,12 +130,10 @@ void loop() {
     
     if(deviceType != DEVICE_TYPE_TERMOMETER){
       checkIncoming();
-      /*if(seconds() - nodeLastCollectionSent >= SERVER_UPDATE_INTERVAL_SECONDS){
-        Serial.println("before sendCollection " + (String(esp_get_free_heap_size()) + " B"));
+      if(seconds() - nodeLastCollectionSent >= SERVER_UPDATE_INTERVAL_SECONDS){
         sendCollectionToServer();
-        
         nodeLastCollectionSent = seconds();
-      }*/
+      }
       delay(10);
     }
   }

@@ -31,6 +31,11 @@ void distanceScanCompletedCallback(MacAddress senderAddress, ibeacon_instance_t 
 }
 
 void sendCollectionToServer(){
+  for( auto b = ibeacon_scanned_list.begin(); b != ibeacon_scanned_list.end(); ){
+      if( (*b).lastTimestamp - getCurrentTime() >= BEACON_TIMEOUT_SECONDS ) 
+        b = ibeacon_scanned_list.erase(b); 
+      else ++b;
+  }
   /*String JSON = "{ \"idCustomer\": \""+ charArrayToString(current_configs.customer) +"\", \n";
   JSON += "\"idGroup\": \"" + charArrayToString(current_configs.collection) + "\", \n";
   JSON += "\"eventsLog\": [\n";
@@ -77,3 +82,7 @@ void callBack_response(String response){
     }
   }
 }
+
+
+/*
+*/
