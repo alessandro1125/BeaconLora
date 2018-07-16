@@ -13,26 +13,22 @@
 #define DI0     26
 #define BAND    868E6
 
-#define HELTEC_WIFI_LORA_32_BT
-//#define ESP_WROOM_32
-
 #define seconds() (millis()/1000)
 #define DIST_ACCEPTANCE_INTERVAL 1.5
 #define SERVER_UPDATE_INTERVAL_SECONDS 60
 #define RAM_REF_INTERVAL_MILLIS 1000
 #define BEACON_TIMEOUT_SECONDS 120
 
+//comment if device has no display
+#define HAS_DISPLAY
+
 // the OLED used
-
-#ifdef HELTEC_WIFI_LORA_32_BT
 U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset=*/ 16);
-#endif
 
-#ifdef HELTEC_WIFI_LORA_32_BT
-#define U8X8_POINTER() &u8x8
-#endif
-#ifdef ESP_WROOM_32
-#define U8X8_POINTER() NULL
+#ifdef HAS_DISPLAY
+  #define U8X8_POINTER() &u8x8
+#else
+  #define U8X8_POINTER() NULL
 #endif
 
 MacAddress address;
@@ -53,10 +49,11 @@ void setup() {
   
   //codice per il softAP
   readMacAddress();
+  setDeviceMode(APP_PURPOSES::LOCATION);
   init(&config_params, address.toString(), U8X8_POINTER());
   config_params_t * user_params = clientListener();
   //qui ho le config giuste
-  #ifdef HELTEC_WIFI_LORA_32_BT
+  #ifdef HAS_WIFI
   u8x8.clearDisplay();
   #endif
   if(user_params->type == DEVICE_TYPE_INVALID){
@@ -84,12 +81,15 @@ void setup() {
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     ble_ibeacon_init();
   }
+
+  if(user_params->bt_configs.referencePower != 0&& user_params->bt_configs.noise != 0)
+    updateRSSIParams(user_params->bt_configs.referencePower, user_params->bt_configs.noise != 0);
   //end ble init
 
-  #ifdef HELTEC_WIFI_LORA_32_BT
-  u8x8.clearLine(1);
-  u8x8.drawString(0, 1, "Ready");
-  printMACAddressToScreen(6);
+  #ifdef HAS_DISPLAY
+    u8x8.clearDisplay();
+    u8x8.drawString(0, 1, "Ready");
+    printMACAddressToScreen(6);
   #endif
   
   delay(1000);  
@@ -97,7 +97,7 @@ void setup() {
 
 void initSPISerialAndDisplay(){
   SPI.begin(5, 19, 27, 18);
-  #ifdef HELTEC_WIFI_LORA_32_BT
+  #ifdef HAS_DISPLAY
   u8x8.begin();
   u8x8.setFont(u8x8_font_chroma48medium8_r);
   u8x8.drawString(0, 1, "Initializing");
@@ -119,7 +119,7 @@ void loop() {
     delay(1000);
   } else {
 
-    #ifdef HELTEC_WIFI_LORA_32_BT
+    #ifdef HAS_MONITOR
         if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
           u8x8.drawString(0, 4 , "Free RAM");
           u8x8.clearLine(5);
