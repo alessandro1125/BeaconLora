@@ -53,21 +53,21 @@ void setup() {
   init(&config_params, address.toString(), U8X8_POINTER());
   config_params_t * user_params = clientListener();
   //qui ho le config giuste
-  #ifdef HAS_WIFI
+  #ifdef HAS_DISPLAY
   u8x8.clearDisplay();
   #endif
   if(user_params->type == DEVICE_TYPE_INVALID){
-    deviceType = DEVICE_TYPE_INVALID;
+    current_configs.type = DEVICE_TYPE_INVALID;
     u8x8.clearLine(1);
     u8x8.drawString(0, 1, "Reboot required");
     return;
   }
   initWithConfigParams(user_params, U8X8_POINTER(), true);// dopo ci  va true
 
-  if(deviceType != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  if(current_configs.type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     initLoRa(address, SS, RST, DI0);
 
-  if(deviceType != DEVICE_TYPE_TERMOMETER){
+  if(current_configs.type != DEVICE_TYPE_TERMOMETER){
     initTimeSync(U8X8_POINTER());
     subscribeToReceivePacketEvent(handleResponsePacket);
   }
@@ -115,11 +115,11 @@ void readMacAddress(){
 }
 
 void loop() {
-  if(deviceType == DEVICE_TYPE_INVALID){
+  if(current_configs.type == DEVICE_TYPE_INVALID){
     delay(1000);
   } else {
 
-    #ifdef HAS_MONITOR
+    #ifdef HAS_DISPLAY
         if(millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS){
           u8x8.drawString(0, 4 , "Free RAM");
           u8x8.clearLine(5);
@@ -128,7 +128,7 @@ void loop() {
         }
     #endif
     
-    if(deviceType != DEVICE_TYPE_TERMOMETER){
+    if(current_configs.type != DEVICE_TYPE_TERMOMETER){
       checkIncoming();
       if(seconds() - nodeLastCollectionSent >= SERVER_UPDATE_INTERVAL_SECONDS){
         sendCollectionToServer();
