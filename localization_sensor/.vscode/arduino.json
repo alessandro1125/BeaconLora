@@ -1,0 +1,7 @@
+{
+    "board": "espressif:esp32:heltec_wifi_lora_32",
+    "configuration": "FlashFreq=80,UploadSpeed=921600",
+    "port": "COM3",
+    "sketch": "localization_sensor.ino",
+    "output": "C:\\Users\\Ivano\\Documents\\loc_sen_build"
+}

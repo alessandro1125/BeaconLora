@@ -15,12 +15,22 @@
 
 #define seconds() (millis()/1000)
 #define DIST_ACCEPTANCE_INTERVAL 1.5
-#define SERVER_UPDATE_INTERVAL_SECONDS 60
+#define SERVER_UPDATE_INTERVAL_SECONDS 30
 #define RAM_REF_INTERVAL_MILLIS 1000
 #define BEACON_TIMEOUT_SECONDS 120
 
 //comment if device has no display
 #define HAS_DISPLAY
+
+typedef struct scan_result {
+  ibeacon_instance_t beacon;
+  unsigned long timestamp;
+};
+
+typedef std::vector<scan_result> ScansCollection;
+typedef std::unordered_map<uint64_t, ScansCollection> DevMap;
+DevMap* scansMap;
+DevMap* oldMap;
 
 // the OLED used
 U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset=*/ 16);
@@ -33,7 +43,7 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ 15, /* data=*/ 4, /* reset=*/
 
 MacAddress address;
 
-request_instance_t requestUpdate = { "messages.geisoft.org" , "/services/beacontrace/feedtemp" , "" , "POST"};
+request_instance_t requestUpdate = { "messages.geisoft.org" , "/services/beacontrace/feedposition" , "" , "POST"};
 
 unsigned long autonomousTermometerLastSensorRead;
 unsigned long nodeLastCollectionSent;
@@ -57,19 +67,23 @@ void setup() {
   u8x8.clearDisplay();
   #endif
   if(user_params->type == DEVICE_TYPE_INVALID){
-    current_configs.type = DEVICE_TYPE_INVALID;
+    current_configs->type = DEVICE_TYPE_INVALID;
     u8x8.clearLine(1);
     u8x8.drawString(0, 1, "Reboot required");
     return;
   }
   initWithConfigParams(user_params, U8X8_POINTER(), true);// dopo ci  va true
 
-  if(current_configs.type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  if(current_configs->type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     initLoRa(address, SS, RST, DI0);
+  else
+    myAddress = address;
 
-  if(current_configs.type != DEVICE_TYPE_TERMOMETER){
+  if(current_configs->type != DEVICE_TYPE_TERMOMETER){
     initTimeSync(U8X8_POINTER());
     subscribeToReceivePacketEvent(handleResponsePacket);
+    scansMap = new DevMap();
+    oldMap = new DevMap();
   }
   
   //ble init
@@ -115,7 +129,7 @@ void readMacAddress(){
 }
 
 void loop() {
-  if(current_configs.type == DEVICE_TYPE_INVALID){
+  if(current_configs->type == DEVICE_TYPE_INVALID){
     delay(1000);
   } else {
 
@@ -128,14 +142,16 @@ void loop() {
         }
     #endif
     
-    if(current_configs.type != DEVICE_TYPE_TERMOMETER){
-      checkIncoming();
+    if(current_configs->type != DEVICE_TYPE_TERMOMETER){
       if(seconds() - nodeLastCollectionSent >= SERVER_UPDATE_INTERVAL_SECONDS){
+        Serial.println("");
         sendCollectionToServer();
         nodeLastCollectionSent = seconds();
       }
-      delay(10);
+      checkIncoming();
+      //Serial.println((int)seconds() - (int)nodeLastCollectionSent);
     }
+    delay(10);
   }
 }
 
