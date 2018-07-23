@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <link rel="stylesheet" href="src/github-pandoc.css" type="text/css" />
+  <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML-full" type="text/javascript"></script>
+</head>
+<body>
+<h1 id="localizzazione-ble">Localizzazione BLE</h1>
+<p>Questo sketch permette di utlizzare le <a href="https://github.com/Sauro98/esp32ArduinoLibraries">librerie esp32</a> per ottenere la misura della distanza dei beacon presenti dell'area dal device che esegue questo codice.</p>
+<h2 id="struttura-del-sistema">Struttura del sistema</h2>
+<p>Il sistema è composto da:</p>
+<ul>
+<li><p>Un server centrale: raccoglie i dati dei dispositivi ed effettua operazioni su du essi</p></li>
+<li><p>Dei beacon: dispositivi che emettono ad intervalli regolari messaggi bluetooth di advertising</p></li>
+<li><p>Dei dispositivi ESP32: sono locati in posizioni strategiche della struttura in cui viene installato il sistema e raccolgono le informazioni sulla distanza dei beacon rilevati rispetto alla loro posizione.</p></li>
+</ul>
+<p>Sono presenti 3 diversi tipi di dispositivi ESP32:</p>
+<ul>
+<li>Nodo</li>
+<li>Sensore</li>
+<li>Sensore autonomo</li>
+</ul>
+<h4 id="nodo">Nodo</h4>
+<p>Il nodo è un dipositivo connesso ad internet che ha il compito di raccogliere ed immettere in rete i messaggi dei sensori che non hanno la possibilità di essere connessi. Il nodo resta in perenne ascolto di messaggi LoRa dai sensori per poterli inoltrare al server</p>
+<h4 id="sensore">Sensore</h4>
+<p>Il sensore è un dispositivo che non ha la possibilità, per la sua posozione fisica, di essere connesso alla rete, quindi delega al nodo la responsabilità di inviare al server i dati raccolti. Solitamente è collegato all'esterno o in aree con forte attenuazione del segnale di rete.</p>
+<p>Nodo e sensore comunicano tramite la tecnologia LoRa.</p>
+<h4 id="sensore-autonomo">Sensore autonomo</h4>
+<p>Questo è un sensore che ha la possibilità di essere connesso alla rete wifi e quindi può inoltrare autonomamente i dati raccolti al server, senza la necessità di passare attraverso un nodo.</p>
+<h2 id="localizzazione-bluetooth">Localizzazione bluetooth</h2>
+<p>I dispositivi utilizzano la tecnologia BLE per ricevere i pacchetti di advertising dai beacon ed utilizzano il valore di RSSI letto dal pacchetto per effettuare una stima della distanza. La formula per il calcolo della distanza è:</p>
+<p><span class="math display">\[RSSI(d) = RSSI(d_0) - 10nlog_{10}\left(\frac{d}{d_0}\right)\]</span></p>
+<p>Dove <span class="math inline">\(RSSI(d)\)</span> è il valore di RSSI letto dal pacchetto BLE, <span class="math inline">\(RSSI(d_0)\)</span> è il valore di RSSI che si leggerebbe se il beacon fosse alla distanza <span class="math inline">\(d_0\)</span>, detta <strong>distanza di riferimento</strong>, che può essere scelta arbitrariamente, ed <span class="math inline">\(n\)</span> è un coefficiente che rappresenta il livello di rumore dell'ambiente in cui si svolge la misurazione.</p>
+<p>Ponendo <span class="math inline">\(d_0 = 1\text{m}\)</span> e defienendo <span class="math inline">\(RSSI(1\text{m}) = A\)</span>, la formula iniziale può essere ridotta a: <span class="math display">\[RSSI(d) = A - 10nlog_{10}(d)\]</span></p>
+<p>Questa formula poi può essere invertita per ottenere la distanza:</p>
+<p><span class="math display">\[ 
+d = 10^{\dfrac{A-RSSI(d)}{10n}}\]</span></p>
+<p>Per poter applicare questa dormula è necessario conoscere i valori di <span class="math inline">\(A\)</span> ed <span class="math inline">\(n\)</span>. Tali valori possono essere ottenuti empiricamente se si utlizzano tre dispositivi capaci di emettere e ricevere pacchetti BLE:</p>
+<ol style="list-style-type: decimal">
+<li>Si posiziona un dispositivo, dal quale poi si leggeranno i risultati ottenuti, in un punto arbitrario e gli altri 2 a due distanze conosciute dal primo dispositivo, necessariamente diverse fra di loro.</li>
+<li>Si misurano i valori di RSSI letti dal primo dispositivo alla ricezione dei pacchetti degli altri due dispositivi. Per avere un valore attendibile è bene raccogliere un campione significativo di misurazioni RSSI, per cercare di attenuare l'errore casuale sulla misurazione.</li>
+<li>Dalle misurazioni RSSI ottenute si ricava la media, una per dispositivo, e si assume che quel dato sia il valore di RSSI che si riceverà dai beacon alla stessa distanza</li>
+</ol>
+<p>Avendo ora disponibili due valori di distanza e due valori di RSSIè possibile risolvere il seguente sistema per ricavare le due incognite <span class="math inline">\(A\)</span> ed <span class="math inline">\(n\)</span>:</p>
+<p>Definendo <span class="math inline">\(d_1\)</span> il primo dispositivo, <span class="math inline">\(d_2\)</span> il secondo, <span class="math inline">\(R_1\)</span> il valore di RSSI dal primo e <span class="math inline">\(R_2\)</span> il valore di RSSI del secondo si ottiene:</p>
+<p><span class="math display">\[ \begin{cases}
+    R_1 = A - 10nlog_{10}d_1\\
+    R_2 = A - 10nlog_{10}d_2
+    \end{cases} \]</span></p>
+<p>Che può essere risolto per <span class="math inline">\(n\)</span> ed <span class="math inline">\(A\)</span>:</p>
+<p><span class="math display">\[ 
+    \begin{cases}
+    n = \dfrac{R_1-R_2}{10log_{10}\frac{d_2}{d_1}}\\
+    A = R_2 + \dfrac{R_1-R_2}{log_{10}\frac{d_2}{d_1}}log_{10}d2
+    \end{cases} 
+\]</span></p>
+<p>Avendo ora trovato le due incognite è possibile utilizzarle per il calcolo della distanza dei beacon.</p>
+</body>
+</html>
