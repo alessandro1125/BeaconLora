@@ -14,8 +14,8 @@
 #define BAND 868E6
 
 #define seconds() (millis() / 1000)
-#define DIST_ACCEPTANCE_INTERVAL 1.5
-#define SERVER_UPDATE_INTERVAL_SECONDS 30
+#define DIST_ACCEPTANCE_INTERVAL 1.0
+#define SERVER_UPDATE_INTERVAL_SECONDS 120
 #define RAM_REF_INTERVAL_MILLIS 1000
 #define BEACON_TIMEOUT_SECONDS 120
 
@@ -133,6 +133,7 @@ void readMacAddress() {
 }
 
 void loop() {
+  if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitimo un crash
   if (current_configs->type == DEVICE_TYPE_INVALID) {
     delay(1000);
   } else {
@@ -164,7 +165,7 @@ void handleResponsePacket(Packet packet) {
     // readTempAndSendToServerIfNecessary(&packet);
     packet.printPacket();
     distanceScanCompletedCallback(
-        address, decodeBeaconFromPacket((uint8_t*)packet.body));
+        packet.sender, decodeBeaconFromPacket((uint8_t*)packet.body));
   }
   Serial.println("packet");
 }
