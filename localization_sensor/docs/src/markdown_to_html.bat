@@ -1,3 +1,4 @@
 
+cd docs
 del index.html
-pandoc -o ./index.html src/index.md --css src/github-pandoc.css --mathjax
+pandoc --mathjax  src/index.md -o ./index.html --css src/github-pandoc.css --standalone

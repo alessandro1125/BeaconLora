@@ -3,7 +3,8 @@
         {
             "name": "Win32",
             "includePath": [
-                "C:\\Users\\Ivano\\Documents\\Arduino\\hardware\\espressif\\esp32\\**"
+                "C:\\Users\\Ivano\\Documents\\Arduino\\hardware\\espressif\\esp32\\**",
+                "C:\\Users\\Ivano\\Documents\\Arduino\\libraries\\**"
             ],
             "intelliSenseMode": "msvc-x64",
             "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/bin/cl.exe",

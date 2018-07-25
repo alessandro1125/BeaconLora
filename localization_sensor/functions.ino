@@ -25,13 +25,29 @@ void distanceScanCompletedCallback(MacAddress senderAddress,
 
 void sendCollectionToServer() {
   Serial.println("Inside sendcollection");
-  for (auto b = ibeacon_scanned_list.begin();
+  /*for (auto b = ibeacon_scanned_list.begin();
        b != ibeacon_scanned_list.end();) {
-    if ((*b).lastTimestamp - getCurrentTime() >= BEACON_TIMEOUT_SECONDS)
+    if (getCurrentTime() - (*b).lastTimestamp >= BEACON_TIMEOUT_SECONDS) {
+      Serial.print("erasing ");
+      Serial.println((*b).minor);
       b = ibeacon_scanned_list.erase(b);
-    else
+    } else
       ++b;
+  }*/
+
+  if (!ibeacon_scanned_list.empty()) {
+    for (int i = ibeacon_scanned_list.size() - 1; i >= 0; i--) {
+      Serial.println("visiting ");
+      Serial.println(ibeacon_scanned_list.at(i).minor);
+      if (getCurrentTime() - ibeacon_scanned_list.at(i).lastTimestamp >=
+          BEACON_TIMEOUT_SECONDS) {
+        Serial.print("erasing ");
+        Serial.println(ibeacon_scanned_list.at(i).minor);
+        ibeacon_scanned_list.erase(ibeacon_scanned_list.begin() + i);
+      }
+    }
   }
+
   String JSON = "{" + JSON += "{\"eventsLog\":[";
   auto it = scansMap->begin();
   while (it != scansMap->end()) {
@@ -107,7 +123,6 @@ void callBack_response(String response) {
     if (result == "Action Completed") {
       Serial.println("Action completed");
       eraseMap(oldMap);
-      scansMap->erase(scansMap->begin(), scansMap->end());
     } else {
       Serial.println("Malformad JSON");
       addOldMapToScansMap();

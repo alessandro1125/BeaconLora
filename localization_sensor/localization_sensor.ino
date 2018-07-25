@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <vector>
 #include "LocationProtocol.h"
+#include "esp_bt.h"
 #include "esp_system.h"
 #include "ibeacon_message_handler.h"
 #include "init_configs_tools.h"
@@ -22,7 +23,7 @@
 // comment if device has no display
 #define HAS_DISPLAY
 
-typedef struct scan_result {
+struct scan_result {
   ibeacon_instance_t beacon;
   unsigned long timestamp;
 };
@@ -53,10 +54,10 @@ unsigned long lastRamRef;
 void setup() {
   initSPISerialAndDisplay();
   init_nvs();
+  u8x8.drawString(0, 7, (String(esp_get_free_heap_size()) + " B").c_str());
   // read old configs from memory
   config_params_t config_params = readConfigsFromMemory();
   Serial.println(config_params.type);
-
   // codice per il softAP
   readMacAddress();
   setDeviceMode(APP_PURPOSES::LOCATION);
@@ -91,10 +92,12 @@ void setup() {
   // ble init
 
   if (user_params->type != DEVICE_TYPE_NODE) {
+    nvs_flash_init();
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
+    Serial.println("in");
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    esp_bt_controller_init(&bt_cfg);
-    esp_bt_controller_enable(ESP_BT_MODE_BLE);
+    ESP_ERROR_CHECK(esp_bt_controller_init(&bt_cfg));
+    ESP_ERROR_CHECK(esp_bt_controller_enable(ESP_BT_MODE_BLE));
     ble_ibeacon_init();
   }
 
@@ -141,6 +144,7 @@ void loop() {
     if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
       u8x8.drawString(0, 4, "Free RAM");
       u8x8.clearLine(5);
+      delay(10);
       u8x8.drawString(0, 5, (String(esp_get_free_heap_size()) + " B").c_str());
       lastRamRef = millis();
     }
@@ -153,11 +157,12 @@ void loop() {
         sendCollectionToServer();
         nodeLastCollectionSent = seconds();
       }
-      checkIncoming();
       // Serial.println((int)seconds() - (int)nodeLastCollectionSent);
     }
+    if (current_configs->type == DEVICE_TYPE_NODE) checkIncoming();
     delay(10);
   }
+  delay(100);
 }
 
 void handleResponsePacket(Packet packet) {

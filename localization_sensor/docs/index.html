@@ -1,17 +1,37 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
-  <title></title>
-  <style type="text/css">code{white-space: pre;}</style>
-  <link rel="stylesheet" href="src/github-pandoc.css" type="text/css" />
-  <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML-full" type="text/javascript"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Localizzazione BLE</title>
+  <style type="text/css">
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: inline-block; vertical-align: top; width: 50%;}
+  </style>
+  <link rel="stylesheet" href="src/github-pandoc.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-AMS_CHTML-full" type="text/javascript"></script>
+  <!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
 </head>
 <body>
-<h1 id="localizzazione-ble">Localizzazione BLE</h1>
-<p>Questo sketch permette di utlizzare le <a href="https://github.com/Sauro98/esp32ArduinoLibraries">librerie esp32</a> per ottenere la misura della distanza dei beacon presenti dell'area dal device che esegue questo codice.</p>
+<header>
+<h1 class="title">Localizzazione BLE</h1>
+</header>
+<p>Questo sketch permette di utlizzare le <a href="https://github.com/Sauro98/esp32ArduinoLibraries">librerie esp32</a> per ottenere la misura della distanza dei beacon presenti dell’area dal device che esegue questo codice.</p>
+<ul>
+<li><a href="#struttura-del-sistema">Struttura del sistema</a> - <a href="#nodo">Nodo</a> - <a href="#sensore">Sensore</a> - <a href="#sensore-autonomo">Sensore autonomo</a></li>
+<li><a href="#localizzazione-bluetooth">Localizzazione bluetooth</a></li>
+<li><a href="#realizzazione-del-sistema">Realizzazione del sistema</a>
+<ul>
+<li><a href="#descrizione-delle-tre-categorie-di-configurazione">Descrizione delle tre categorie di configurazione</a></li>
+<li><a href="#inizializzazione-dei-dispositivi">Inizializzazione dei dispositivi</a></li>
+<li><a href="#fase-operativa">Fase operativa</a></li>
+</ul></li>
+</ul>
 <h2 id="struttura-del-sistema">Struttura del sistema</h2>
 <p>Il sistema è composto da:</p>
 <ul>
@@ -28,26 +48,26 @@
 <h4 id="nodo">Nodo</h4>
 <p>Il nodo è un dipositivo connesso ad internet che ha il compito di raccogliere ed immettere in rete i messaggi dei sensori che non hanno la possibilità di essere connessi. Il nodo resta in perenne ascolto di messaggi LoRa dai sensori per poterli inoltrare al server</p>
 <h4 id="sensore">Sensore</h4>
-<p>Il sensore è un dispositivo che non ha la possibilità, per la sua posozione fisica, di essere connesso alla rete, quindi delega al nodo la responsabilità di inviare al server i dati raccolti. Solitamente è collegato all'esterno o in aree con forte attenuazione del segnale di rete.</p>
+<p>Il sensore è un dispositivo che non ha la possibilità, per la sua posizione fisica, di essere connesso alla rete, quindi delega al nodo la responsabilità di inviare al server i dati raccolti. Solitamente è collegato all’esterno o in aree con forte attenuazione del segnale di rete.</p>
 <p>Nodo e sensore comunicano tramite la tecnologia LoRa.</p>
 <h4 id="sensore-autonomo">Sensore autonomo</h4>
 <p>Questo è un sensore che ha la possibilità di essere connesso alla rete wifi e quindi può inoltrare autonomamente i dati raccolti al server, senza la necessità di passare attraverso un nodo.</p>
 <h2 id="localizzazione-bluetooth">Localizzazione bluetooth</h2>
-<p>I dispositivi utilizzano la tecnologia BLE per ricevere i pacchetti di advertising dai beacon ed utilizzano il valore di RSSI letto dal pacchetto per effettuare una stima della distanza. La formula per il calcolo della distanza è:</p>
+<p>I dispositivi utilizzano la tecnologia BLE (bluetooth low energy) per ricevere i pacchetti di advertising dai beacon ed utilizzano il valore di RSSI letto dal pacchetto per effettuare una stima della distanza. La formula per il calcolo della distanza è:</p>
 <p><span class="math display">\[RSSI(d) = RSSI(d_0) - 10nlog_{10}\left(\frac{d}{d_0}\right)\]</span></p>
-<p>Dove <span class="math inline">\(RSSI(d)\)</span> è il valore di RSSI letto dal pacchetto BLE, <span class="math inline">\(RSSI(d_0)\)</span> è il valore di RSSI che si leggerebbe se il beacon fosse alla distanza <span class="math inline">\(d_0\)</span>, detta <strong>distanza di riferimento</strong>, che può essere scelta arbitrariamente, ed <span class="math inline">\(n\)</span> è un coefficiente che rappresenta il livello di rumore dell'ambiente in cui si svolge la misurazione.</p>
+<p>Dove <span class="math inline">\(RSSI(d)\)</span> è il valore di RSSI letto dal pacchetto BLE, <span class="math inline">\(RSSI(d_0)\)</span> è il valore di RSSI che si leggerebbe se il beacon fosse alla distanza <span class="math inline">\(d_0\)</span>, detta <strong>distanza di riferimento</strong>, che può essere scelta arbitrariamente, ed <span class="math inline">\(n\)</span> è un coefficiente che rappresenta il livello di rumore dell’ambiente in cui si svolge la misurazione.</p>
 <p>Ponendo <span class="math inline">\(d_0 = 1\text{m}\)</span> e defienendo <span class="math inline">\(RSSI(1\text{m}) = A\)</span>, la formula iniziale può essere ridotta a: <span class="math display">\[RSSI(d) = A - 10nlog_{10}(d)\]</span></p>
 <p>Questa formula poi può essere invertita per ottenere la distanza:</p>
 <p><span class="math display">\[ 
 d = 10^{\dfrac{A-RSSI(d)}{10n}}\]</span></p>
 <p>Per poter applicare questa dormula è necessario conoscere i valori di <span class="math inline">\(A\)</span> ed <span class="math inline">\(n\)</span>. Tali valori possono essere ottenuti empiricamente se si utlizzano tre dispositivi capaci di emettere e ricevere pacchetti BLE:</p>
-<ol style="list-style-type: decimal">
+<ol type="1">
 <li>Si posiziona un dispositivo, dal quale poi si leggeranno i risultati ottenuti, in un punto arbitrario e gli altri 2 a due distanze conosciute dal primo dispositivo, necessariamente diverse fra di loro.</li>
-<li>Si misurano i valori di RSSI letti dal primo dispositivo alla ricezione dei pacchetti degli altri due dispositivi. Per avere un valore attendibile è bene raccogliere un campione significativo di misurazioni RSSI, per cercare di attenuare l'errore casuale sulla misurazione.</li>
+<li>Si misurano i valori di RSSI letti dal primo dispositivo alla ricezione dei pacchetti degli altri due dispositivi. Per avere un valore attendibile è bene raccogliere un campione significativo di misurazioni RSSI, per cercare di attenuare l’errore casuale sulla misurazione.</li>
 <li>Dalle misurazioni RSSI ottenute si ricava la media, una per dispositivo, e si assume che quel dato sia il valore di RSSI che si riceverà dai beacon alla stessa distanza</li>
 </ol>
 <p>Avendo ora disponibili due valori di distanza e due valori di RSSIè possibile risolvere il seguente sistema per ricavare le due incognite <span class="math inline">\(A\)</span> ed <span class="math inline">\(n\)</span>:</p>
-<p>Definendo <span class="math inline">\(d_1\)</span> il primo dispositivo, <span class="math inline">\(d_2\)</span> il secondo, <span class="math inline">\(R_1\)</span> il valore di RSSI dal primo e <span class="math inline">\(R_2\)</span> il valore di RSSI del secondo si ottiene:</p>
+<p>Definendo <span class="math inline">\(d_1\)</span> la distanza a cui si trova il primo dispositivo, <span class="math inline">\(d_2\)</span> la distanza a cui si trova il secondo , <span class="math inline">\(R_1\)</span> il valore di RSSI dal primo e <span class="math inline">\(R_2\)</span> il valore di RSSI del secondo si ottiene:</p>
 <p><span class="math display">\[ \begin{cases}
     R_1 = A - 10nlog_{10}d_1\\
     R_2 = A - 10nlog_{10}d_2
@@ -60,5 +80,67 @@ d = 10^{\dfrac{A-RSSI(d)}{10n}}\]</span></p>
     \end{cases} 
 \]</span></p>
 <p>Avendo ora trovato le due incognite è possibile utilizzarle per il calcolo della distanza dei beacon.</p>
+<p>Per poter effettuare una stima attendibile della distanza a cui si trova un beacon occorre effettuare più misurazioni ed aggregarle per cercare di eliminare gli errori casuali nella lettura dei valori di RSSI ricevuti. Empiricamente si è osservato che la media delle misure può fornire un valore fuorviante perchè la media viene influenzata in misura sensibile dagli estremi del range di valori considerato. Per un oggetto statico un buon indicatore di quale sia il valore reale di RSSI è risultato essere la moda delle misurazioni effettuate ma, per un oggetto in movimento, la moda delle misurazioni perde di significato. Pertanto si propone l’utilizzo di una media calcolata scartando una percentuale di misurazioni agli estremi, ad esempio un 10%.</p>
+<p>Al momento vengono aggregate 30 misurazioni consecutive per beacon che, con un periodo di trasmissione del beacon di un secondo, spazia un intervallo di 30 secondi.</p>
+<h2 id="realizzazione-del-sistema">Realizzazione del sistema</h2>
+<p>[Inserire parte sulla struttura del database]</p>
+<p>I dispositivi ESP32 sono programmati in modo da poter svolgere uno qualsiasi dei tre diversi ruoli descritti all’inizio. Il ruolo del dispositivo viene deciso dall’utente nel momento dell’accensione, a seconda delle proprie necessità e può essere cambiato in ogni momento riaccendendo il dispositivo.</p>
+<p>Al momento dell’accensione infatti l’ESP32 genera una rete WiFi con come nome il proprio indirizzo mac, che l’utente può trovare mostrato sul display sotto il titolo <code>MAC</code>.<br />
+Una volta connessi a tale rete WiFi una pagina web verrà aperta automaticamente nel proprio browser. Se tale pagina non dovesse aprirsi in modo automatico vi si può accedere digitando nella barra degli indirizzi del browser l’indirizzo IP che viene visualizzato nel display del dispositivo (default 192.168.4.1).</p>
+<p>La pagina web che verrà visualizzata permette all’utente di configurare a piacimento il proprio dispositivo. Se è già stata effettuata una inizializzazione prima di questo accesso la pagina verrà automaticamente riempita con i parametri precedenti, che possono essere cambiati.</p>
+<p>La pagina di avvio cambia a seconda della funzione scelta per il dispositivo, mostrando o nascondendo una delle tre categorie di configurazioni:</p>
+<ul>
+<li>Configurazione della connessione ad internet</li>
+<li>Configurazione dei parametri di rilevazione bluetooth</li>
+<li>Configurazione della connessione LoRa</li>
+</ul>
+<p>Se si sta configurando un nodo si avrà accesso alla prima categoria, in modo da poter configurare la connessione WiFi, la seconda non viene mostrata in quanto il nodo non deve eseguire scansioni bluetooth e la terza non viene mostrata perchè il nodo contiene già al suo interno le configurazioni necessarie.</p>
+<p>Se si sta configurando un sensore saranno disponibili la seconda e la terza categoria perchè il sensore va posizionato in un luogo in cui non c’è copertura di rete.</p>
+<p>Se si sta configurando un sensore autonomo saranno disponibili la prima e la seconda categoria perchè il sensore autonomo non utilizza la connessione LoRa.</p>
+<h3 id="descrizione-delle-tre-categorie-di-configurazione">Descrizione delle tre categorie di configurazione</h3>
+<ul>
+<li><p><strong>Configurazione della connessione ad internet:</strong> consiste in due campi obbligatori che sono:</p>
+<ul>
+<li>SSID: nome della rete wifi a cui ci si vuole collegare</li>
+<li>Password: password della rete wifi specificata nel campo precedente</li>
+</ul>
+<p>e in quattro campi facoltativi che compaiono se si toglie la spunta dalla casella <code>DHCP</code>:</p>
+<ul>
+<li>IP: l’indirizzo ip statico che si vuole avere nella rete</li>
+<li>Maschera: la maschera di rete</li>
+<li>Gateway: l’indirizzo del gateway che si vuole utilizzare</li>
+<li>DNS: l’indirizzo del DNS scelto</li>
+</ul>
+<p>Se si lascia la spunta su <code>DHCP</code> questi parametri verranno impostati automaticamente.</p></li>
+<li><p><strong>Configurazione dei parametri di rilevazione bluetooth:</strong> Anche questi sono due campi che doventano visibili solo selezionando la casella <code>Avanzate</code> nella parte inferiore dell pagina e sono:</p>
+<ul>
+<li>Potenza alla distanza di riferimento: valore di RSSI misurato ad un metro di distanza dal beacon</li>
+<li>Coefficiente di rumore: valore del rumore di disturbo presente nell’ambiente</li>
+</ul>
+<p>Questi due valori non sono obbligatori e cambiarli può comportare difetti nella misurazione della distanza. Per sapere come calcolarli consultare <a href="#localizzazione-bluetooth">Localizzazione Bluetooth</a></p></li>
+<li><p><strong>Configurazione della connessione LoRa:</strong> consiste in un campo che serve ad indicare a quale nodo il sensore dovrà fare riferimento:</p>
+<ul>
+<li>Indirizzo del nodo: mac address del nodo di riferimento, può essere letto dal display del nodo in questione sotto il titolo <code>MAC</code></li>
+</ul></li>
+</ul>
+<h3 id="inizializzazione-dei-dispositivi">Inizializzazione dei dispositivi</h3>
+<p>Una volta che sono stati scelti i parametri voluti per il dispositivo, premendo il pulsante <code>Invia</code>, questo tenterà di inizializzarsi utilizzando tali parametri.</p>
+<ul>
+<li><p><strong>Nodo e sensore autonomo:</strong> Entrambi proveranno a connettersi alla rete WiFi selezionata e sucessivamente a sincronizzare il loro orologio con quello del server. Queste operazioni possono portare a due casi di errore:</p>
+<ul>
+<li>Se SSID o Password della eventuale rete WiFi a cui si vuole connettere dovessero essere sbagliati oppure se, per altri motivi, non fosse possibile per il dispositivo connettersi alla rete WiFi voluta esso mostrerà all’utente un messaggio che lo invita a premere il pulsante <code>Reset</code> per poter riaccedere alla pagina iniziale e rivedere i parametri inseriti.</li>
+<li>Se la sincronizzazione dell’orologio con il server non dovesse andare a buon fine verrà visualizzato sul display un messaggio che informa l’utente della mancata riuscita dell’operazione e il dispositivo viene automaticamente riavviato dopo 10 secondi, a meno che non venga premuto il tasto reset prima dello scadere di tale intervallo.</li>
+</ul></li>
+<li><p><strong>Sensore autonomo e sensore:</strong> Entrambi inizializzeranno il proprio modulo LoRa con il proprio mac address ed il sensore registrerà l’indirizzo del nodo a cui dovrà poi inviare i propri dati. Questi passaggi non portano ad avere errori bloccanti quindi verranno sempre eseguiti correttamente, tranne nel caso in cui il chip LoRa fosse fisicamente danneggiato.</p></li>
+</ul>
+<p>Nel momento in cui i dispositivi sono correttamente configurati essi salvano le configurazioni appena utilizzate nella loro memoria non volatile per poterle riutilizzare in avvii futuri.</p>
+<p>Se un dispositivo dovesse essere riavviato dopo che ha salvato le proprie configurazioni e l’utente non dovesse essere presente per confermare tali dati tramite connessione WiFi, esso attenderà cinque minuti, dopo i quali considererà validi i dati che ha già presenti nella propria memoria e li utilizzerà per l’inizializzazione.</p>
+<h3 id="fase-operativa">Fase operativa</h3>
+<p>A configurazione completata i dispositivi iniziano la loro fase di funzionamento vero e proprio, che differisce in base al tipo scelto:</p>
+<ul>
+<li><p><strong>Nodo:</strong> resta costantemente in ascolto sul canale LoRa di pacchetti dei sensori. Ogni volta che ne riceve uno lo salva in una coda che viene inoltrata al server ad intervalli di 120 secondi. Se l’operazione di comunicazione della coda al server va a buon fine allora i dati inviati vengono eliminati, altrimenti i dati vengono conservati e verrà effettuato un ulteriore tentativo di invio allo scadere dell’intervallo successivo, fino a quando l’operazione avrà successo, in modo da evitare perdite di dati.</p></li>
+<li><p><strong>Sensore:</strong> resta costantemente in ascolto sul canale bluetooth di pacchetti inviati dai beacon. Per effettuare una stima più precisa della distanza esso aggrega 30 scansioni dello stesso beacon in un unico dato che poi verrà inviato in LoRa all’indirizzo del nodo inserito durante la fase iniziale.</p></li>
+<li><p><strong>Sensore autonomo:</strong> come il sensore anche esso rimane in ascolto dei pacchetti dei beacon ma, una volta ottenuto il dato aggregato, questo viene inserito in una coda interna che viene inviata al server con le stesse modalità previste dal nodo.</p></li>
+</ul>
 </body>
 </html>
