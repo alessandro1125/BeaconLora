@@ -25,17 +25,23 @@ void distanceScanCompletedCallback(MacAddress senderAddress,
 
 void sendCollectionToServer() {
   Serial.println("Inside sendcollection");
-  /*for (auto b = ibeacon_scanned_list.begin();
-       b != ibeacon_scanned_list.end();) {
-    if (getCurrentTime() - (*b).lastTimestamp >= BEACON_TIMEOUT_SECONDS) {
-      Serial.print("erasing ");
-      Serial.println((*b).minor);
-      b = ibeacon_scanned_list.erase(b);
-    } else
-      ++b;
-  }*/
+  Serial.print("Total size of map in bytes: ");
+  unsigned long size = 0;
+  for (auto i = scansMap->begin(); i != scansMap->end(); ++i) {
+    size += i->second.capacity() * sizeof(scan_result) + sizeof(i->first);
+  }
+  Serial.println(size);
 
-  if (!ibeacon_scanned_list.empty()) {
+  Serial.print("Total size of old map in bytes: ");
+  size = 0;
+  for (auto i = oldMap->begin(); i != oldMap->end(); ++i) {
+    size += i->second.capacity() * sizeof(scan_result);
+  }
+  Serial.println(size);
+
+  if (!ibeacon_scanned_list
+           .empty()) {  // cancello dalla lista di scansioni i beacon che non
+                        // sono più visibili dopo un timeout
     for (int i = ibeacon_scanned_list.size() - 1; i >= 0; i--) {
       Serial.println("visiting ");
       Serial.println(ibeacon_scanned_list.at(i).minor);
@@ -47,6 +53,9 @@ void sendCollectionToServer() {
       }
     }
   }
+
+  Serial.println("Size of ibeacon scanned list in bytes: ");
+  Serial.println(ibeacon_scanned_list.capacity() * sizeof(ibeacon_instance_t));
 
   String JSON = "{" + JSON += "{\"eventsLog\":[";
   auto it = scansMap->begin();
@@ -101,13 +110,16 @@ void sendCollectionToServer() {
   JSON += "{}]}";
 
   DevMap* tmp;
-  tmp = scansMap;
+  tmp = scansMap;  // metto la mappa in un'altra vuota e la azzero, in modo da
+                   // avere sia le letture che ho appena inviato che una mappa
+                   // vuota in cui salvare i dati che ricevo nel frattempo che
+                   // finisca la richiesta http
   scansMap = oldMap;
   oldMap = tmp;
 
   // Serial.println(JSON);
   requestUpdate.body = JSON;
-  getHttpResponse(&requestUpdate, callBack_response, &u8x8);
+  getHttpResponse(&requestUpdate, callBack_response, &display);
 }
 
 void callBack_response(String response) {
@@ -116,7 +128,9 @@ void callBack_response(String response) {
   JsonObject& root = jsonBuffer.parseObject(response);
   if (!root.success()) {
     Serial.println("parseJsonObject failed");
-    addOldMapToScansMap();
+    // oldMap->swap(scanMap);
+    addOldMapToScansMap();  // se non sono riuscito a mettere i dati sul server
+                            // li reinserisco nella mappa
   } else {
     const char* resultBuffer = root["MessageText"];
     String result = String(resultBuffer);
@@ -147,10 +161,6 @@ void addOldMapToScansMap() {
 }
 
 void eraseMap(DevMap* myMap) {
-  auto it = myMap->begin();
-  while (it != myMap->end()) {
-    it->second.erase(it->second.begin(), it->second.end());
-    it++;
-  }
-  myMap->erase(myMap->begin(), myMap->end());
+  DevMap temp;
+  myMap->swap(temp);
 }

@@ -2,15 +2,17 @@
 
 Questo sketch permette di utlizzare le [librerie esp32](https://github.com/Sauro98/esp32ArduinoLibraries) per ottenere la misura della distanza dei beacon presenti dell'area dal device che esegue questo codice. 
 
-- [Struttura del sistema](#struttura-del-sistema)
-		- [Nodo](#nodo)
-		- [Sensore](#sensore)
-		- [Sensore autonomo](#sensore-autonomo)
-- [Localizzazione bluetooth](#localizzazione-bluetooth)
-- [Realizzazione del sistema](#realizzazione-del-sistema)
-	- [Descrizione delle tre categorie di configurazione](#descrizione-delle-tre-categorie-di-configurazione)
-	- [Inizializzazione dei dispositivi](#inizializzazione-dei-dispositivi)
-	- [Fase operativa](#fase-operativa)
+**Tabella dei contenuti:**
+
+* [Struttura del sistema](#struttura-del-sistema)
+	* [Nodo](#nodo)
+	* [Sensore](#sensore)
+	* [Sensore autonomo](#sensore-autonomo)
+* [Localizzazione bluetooth](#localizzazione-bluetooth)
+* [Realizzazione del sistema](#realizzazione-del-sistema)
+	* [Descrizione delle tre categorie di configurazione](#descrizione-delle-tre-categorie-di-configurazione)
+	* [Inizializzazione dei dispositivi](#inizializzazione-dei-dispositivi)
+	* [Fase operativa](#fase-operativa)
 
 ## Struttura del sistema
 
@@ -28,17 +30,17 @@ Sono presenti 3 diversi tipi di dispositivi ESP32:
 * Sensore
 * Sensore autonomo
 
-#### Nodo
+### Nodo
 
 Il nodo è un dipositivo connesso ad internet che ha il compito di raccogliere ed immettere in rete i messaggi dei sensori che non hanno la possibilità di essere connessi. Il nodo resta in perenne ascolto di messaggi LoRa dai sensori per poterli inoltrare al server
 
-#### Sensore
+### Sensore
 
 Il sensore è un dispositivo che non ha la possibilità, per la sua posizione fisica, di essere connesso alla rete, quindi delega al nodo la responsabilità di inviare al server i dati raccolti. Solitamente è collegato all'esterno o in aree con forte attenuazione del segnale di rete.
 
 Nodo e sensore comunicano tramite la tecnologia LoRa.
 
-#### Sensore autonomo
+### Sensore autonomo
 
 Questo è un sensore che ha la possibilità di essere connesso alla rete wifi e quindi può inoltrare autonomamente i dati raccolti al server, senza la necessità di passare attraverso un nodo.
 
@@ -64,7 +66,7 @@ Per poter applicare questa dormula è necessario conoscere i valori di $A$ ed $n
 2. Si misurano i valori di RSSI letti dal primo dispositivo alla ricezione dei pacchetti degli altri due dispositivi. Per avere un valore attendibile è bene raccogliere un campione significativo di misurazioni RSSI, per cercare di attenuare l'errore casuale sulla misurazione.
 3. Dalle misurazioni RSSI ottenute si ricava la media, una per dispositivo, e si assume che quel dato sia il valore di RSSI che si riceverà dai beacon alla stessa distanza
 
-Avendo ora disponibili due valori di distanza e due valori di RSSIè possibile risolvere il seguente sistema per ricavare le due incognite $A$ ed $n$:
+Avendo ora disponibili due valori di distanza e due valori di RSSI è possibile risolvere il seguente sistema per ricavare le due incognite $A$ ed $n$:
 
 Definendo $d_1$ la distanza a cui si trova il primo dispositivo, $d_2$ la distanza a cui si trova il secondo , $R_1$ il valore di RSSI dal primo e $R_2$ il valore di RSSI del secondo si ottiene:
 
@@ -127,12 +129,12 @@ Se si sta configurando un sensore autonomo saranno disponibili la prima e la sec
 
 	Se si lascia la spunta su `DHCP` questi parametri verranno impostati automaticamente.
 
-* **Configurazione dei parametri di rilevazione bluetooth:** Anche questi sono due campi che doventano visibili solo selezionando la casella `Avanzate` nella parte inferiore dell pagina e sono:
+* **Configurazione dei parametri di rilevazione bluetooth:** Anche questi sono due campi che diventano visibili solo selezionando la casella `Avanzate` nella parte inferiore dell pagina e sono:
   
 	* Potenza alla distanza di riferimento: valore di RSSI misurato ad un metro di distanza dal beacon
 	* Coefficiente di rumore: valore del rumore di disturbo presente nell'ambiente    
  
-	 Questi due valori non sono obbligatori e cambiarli può comportare difetti nella misurazione della distanza. Per sapere come calcolarli consultare [Localizzazione Bluetooth](#localizzazione-bluetooth)
+	 Questi due valori non sono obbligatori e cambiarli può comportare difetti nella misurazione della distanza. Per sapere come calcolarli consultare [Localizzazione Bluetooth](#localizzazione-bluetooth). Se dopo averli configurati si volesse tornare ad utilizzare i valori preimpostati occorre inserire `0` in entrambi i parametri.
 
 * **Configurazione della connessione LoRa:** consiste in un campo che serve ad indicare a quale nodo il sensore dovrà fare riferimento:
   
@@ -154,15 +156,27 @@ Nel momento in cui i dispositivi sono correttamente configurati essi salvano le 
 Se un dispositivo dovesse essere riavviato dopo che ha salvato le proprie configurazioni e l'utente non dovesse essere presente per confermare tali dati tramite connessione WiFi, esso attenderà cinque minuti, dopo i quali considererà validi i dati che ha già presenti nella propria memoria e li utilizzerà per l'inizializzazione.
 
 ### Fase operativa
-
+F
 A configurazione completata i dispositivi iniziano la loro fase di funzionamento vero e proprio, che differisce in base al tipo scelto:
 
-* **Nodo:** resta costantemente in ascolto sul canale LoRa di pacchetti dei sensori. Ogni volta  che ne riceve uno lo salva in una coda che viene inoltrata al server ad intervalli di 120 secondi. Se l'operazione di comunicazione della coda al server va a buon fine allora i dati inviati vengono eliminati, altrimenti i dati vengono conservati e verrà effettuato un ulteriore tentativo di invio allo scadere dell'intervallo successivo, fino a quando l'operazione avrà successo, in modo da evitare perdite di dati.
+* **Nodo:** resta costantemente in ascolto sul canale LoRa di pacchetti dei sensori. Ogni volta  che ne riceve uno lo salva in una coda che viene inoltrata al server ad intervalli di 120 secondi. Se l'operazione di comunicazione della coda al server va a buon fine allora i dati inviati vengono eliminati, altrimenti i dati vengono conservati e verrà effettuato un ulteriore tentativo di invio allo scadere dell'intervallo successivo, fino a quando l'operazione avrà successo, in modo da evitare perdite di dati. Sul display del dispositivo viene mostrato:
 
-* **Sensore:** resta costantemente in ascolto sul canale bluetooth di pacchetti inviati dai beacon. Per effettuare una stima più precisa della distanza esso aggrega 30 scansioni dello stesso beacon in un unico dato che poi verrà inviato in LoRa all'indirizzo del nodo inserito durante la fase iniziale. 
+	* Connect success/ Client timeout/ Connect faied: stato dell'ultimo tentativo di connessione al server
 
-* **Sensore autonomo:** come il sensore anche esso rimane in ascolto dei pacchetti dei beacon ma, una volta ottenuto il dato aggregato, questo viene inserito in una coda interna che viene inviata al server con le stesse modalità previste dal nodo.
+* **Sensore:** resta costantemente in ascolto sul canale bluetooth di pacchetti inviati dai beacon. Per effettuare una stima più precisa della distanza esso aggrega 30 scansioni dello stesso beacon in un unico dato che poi verrà inviato in LoRa all'indirizzo del nodo inserito durante la fase iniziale. Sul display del dispositivo viene mostrato:
 
+	* Send success/ Node unreachable/ Antenna error: stato dell'ultimo tentativo di invio di messaggio al nodo
+
+* **Sensore autonomo:** come il sensore anche esso rimane in ascolto dei pacchetti dei beacon ma, una volta ottenuto il dato aggregato, questo viene inserito in una coda interna che viene inviata al server con le stesse modalità previste dal nodo. Anche in questo caso viene mostrato lo stato dell'ultimo tentativo di connessione al server.
+
+Tutte le tipologie di dispositivo mostrano inoltre i seguenti messaggi sul display:
+
+* Ready: sta ad indicare che il dispositivo ha completato correttamente l'inizializzazzione
+
+* Free RAM: la quantità di RAM disponibile per il programma
+* MAC: il mac address del dispositivo
+
+Ogni volta che si vorrà cambiare le impostazioni del dipositivo sarà sufficiente premere il pulsante reset presente nel dispositivo, connettersi alla rete wifi creata e modificare i parametri voluti.
 
 
 

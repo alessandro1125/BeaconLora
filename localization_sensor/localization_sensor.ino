@@ -1,7 +1,7 @@
-#include <U8x8lib.h>
 #include <unordered_map>
 #include <vector>
 #include "LocationProtocol.h"
+#include "disp_helper.h"
 #include "esp_bt.h"
 #include "esp_system.h"
 #include "ibeacon_message_handler.h"
@@ -33,14 +33,10 @@ typedef std::unordered_map<uint64_t, ScansCollection> DevMap;
 DevMap* scansMap;
 DevMap* oldMap;
 
-// the OLED used
-U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/15, /* data=*/4,
-                                       /* reset=*/16);
-
 #ifdef HAS_DISPLAY
-#define U8X8_POINTER() &u8x8
+#define U8X8_POINTER() &u8g2
 #else
-#define U8X8_POINTER() NULL
+#define U8X8_POINTER() &display
 #endif
 
 MacAddress address;
@@ -51,10 +47,21 @@ request_instance_t requestUpdate = {
 unsigned long nodeLastCollectionSent;
 unsigned long lastRamRef;
 
+U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2(U8G2_R0, /* clock=*/15, /* data=*/4,
+                                         /* reset=*/16);
+
+static Display display;
+
 void setup() {
+  pinMode(16, OUTPUT);
+  digitalWrite(16, LOW);  // set GPIO16 low to reset OLED
+  delay(50);
+  digitalWrite(16, HIGH);  // while OLED is running, must set GPIO16 in high
   initSPISerialAndDisplay();
   init_nvs();
-  u8x8.drawString(0, 7, (String(esp_get_free_heap_size()) + " B").c_str());
+
+  display.setRow(7, (String(esp_get_free_heap_size()) + " B").c_str());
+  display.refresh();
   // read old configs from memory
   config_params_t config_params = readConfigsFromMemory();
   Serial.println(config_params.type);
@@ -62,19 +69,20 @@ void setup() {
   readMacAddress();
   setDeviceMode(APP_PURPOSES::LOCATION);
   vTaskStartScheduler();
-  init(&config_params, address.toString(), U8X8_POINTER());
+  init(&config_params, address.toString(), &display);
   config_params_t* user_params = clientListener();
 // qui ho le config giuste
 #ifdef HAS_DISPLAY
-  u8x8.clearDisplay();
+  display.clear();
+  display.refresh();
 #endif
   if (user_params->type == DEVICE_TYPE_INVALID) {
     current_configs->type = DEVICE_TYPE_INVALID;
-    u8x8.clearLine(1);
-    u8x8.drawString(0, 1, "Reboot required");
+    display.setRow(1, "Reboot ");
+    display.refresh();
     return;
   }
-  initWithConfigParams(user_params, U8X8_POINTER(), true);  // dopo ci  va true
+  initWithConfigParams(user_params, &display, true);  // dopo ci  va true
 
   if (current_configs->type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     initLoRa(address, SS, RST, DI0);
@@ -83,7 +91,7 @@ void setup() {
 
   if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
     initHTTPTask();
-    initTimeSync(U8X8_POINTER());
+    initTimeSync(&display);
     subscribeToReceivePacketEvent(handleResponsePacket);
     scansMap = new DevMap();
     oldMap = new DevMap();
@@ -94,7 +102,6 @@ void setup() {
   if (user_params->type != DEVICE_TYPE_NODE) {
     nvs_flash_init();
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
-    Serial.println("in");
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_bt_controller_init(&bt_cfg));
     ESP_ERROR_CHECK(esp_bt_controller_enable(ESP_BT_MODE_BLE));
@@ -108,8 +115,9 @@ void setup() {
     // end ble init
 
 #ifdef HAS_DISPLAY
-  u8x8.clearDisplay();
-  u8x8.drawString(0, 1, "Ready");
+  display.clear();
+  display.setRow(1, "Ready");
+  display.refresh();
   printMACAddressToScreen(6);
 #endif
 
@@ -120,9 +128,9 @@ void setup() {
 void initSPISerialAndDisplay() {
   SPI.begin(5, 19, 27, 18);
 #ifdef HAS_DISPLAY
-  u8x8.begin();
-  u8x8.setFont(u8x8_font_chroma48medium8_r);
-  u8x8.drawString(0, 1, "Initializing");
+  display.init(U8X8_POINTER(), true);  // false se non ha il display
+  display.setRow(1, "Initializing");
+  display.refresh();
 #endif
   Serial.begin(115200);
 }
@@ -130,34 +138,32 @@ void initSPISerialAndDisplay() {
 void readMacAddress() {
   uint8_t mac[6];
   esp_efuse_mac_get_default(mac);
-  Serial.println("initializing mac");
   address = MacAddress(mac);
-  Serial.println(address.toString());
+  Serial.println((address.toString()));
 }
 
 void loop() {
-  if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitimo un crash
+  if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitiamo un crash
   if (current_configs->type == DEVICE_TYPE_INVALID) {
     delay(1000);
   } else {
-#ifdef HAS_DISPLAY
     if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
-      u8x8.drawString(0, 4, "Free RAM");
-      u8x8.clearLine(5);
+      display.setRow(4, "Free Ram");
       delay(10);
-      u8x8.drawString(0, 5, (String(esp_get_free_heap_size()) + " B").c_str());
+      const char* ram = String(ESP.getFreeHeap()).c_str();
+      Serial.println(ram);
+      display.setRow(5, ram);
+      display.refresh();
+      printMACAddressToScreen(6);
       lastRamRef = millis();
     }
-#endif
 
     if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
       if (seconds() - nodeLastCollectionSent >=
           SERVER_UPDATE_INTERVAL_SECONDS) {
-        Serial.println("");
         sendCollectionToServer();
         nodeLastCollectionSent = seconds();
       }
-      // Serial.println((int)seconds() - (int)nodeLastCollectionSent);
     }
     if (current_configs->type == DEVICE_TYPE_NODE) checkIncoming();
     delay(10);
@@ -172,14 +178,13 @@ void handleResponsePacket(Packet packet) {
     distanceScanCompletedCallback(
         packet.sender, decodeBeaconFromPacket((uint8_t*)packet.body));
   }
-  Serial.println("packet");
 }
 
 void printMACAddressToScreen(int baseRow) {
   char* mc = address.toCharArray();
-  u8x8.drawString(0, baseRow, "MAC");
-  u8x8.clearLine(baseRow + 1);
-  u8x8.drawString(0, baseRow + 1, mc);
+  display.setRow(baseRow, "MAC");
+  display.setRow(baseRow + 1, mc);
+  display.refresh();
   DELETE_ARRAY(mc)
 }
 
