@@ -1,17 +1,13 @@
 void distanceScanCompletedCallback(MacAddress senderAddress,
                                    ibeacon_instance_t beacon) {
-  Serial.println("Scansione ricevuta");
   auto got = scansMap.find(senderAddress.value);
   if (got == scansMap.end()) {
-    Serial.println("Adding device to collection");
     ScansCollection toInsert = ScansCollection();
     toInsert.push_back({beacon, getCurrentTime()});
     scansMap.insert({senderAddress.value, toInsert});
     return;
   }
   ScansCollection* vec = &got->second;
-  // Serial.print(F("vec size "));
-  // Serial.println((*vec).size());
   if ((*vec).empty()) {
     (*vec).push_back({beacon, getCurrentTime()});
     return;
@@ -20,29 +16,11 @@ void distanceScanCompletedCallback(MacAddress senderAddress,
   if (beacon.distance < lastDist - DIST_ACCEPTANCE_INTERVAL ||
       beacon.distance > lastDist + DIST_ACCEPTANCE_INTERVAL) {
     (*vec).push_back({beacon, getCurrentTime()});
-    Serial.println(F("Distanza aggiunta"));
-  } else
-    Serial.println(F("Distanza costante"));
+  }
 }
 
 void sendCollectionToServer() {
   Serial.println(F("Inside sendcollection"));
-
-  /*if (!ibeacon_scanned_list
-           .empty()) {  // cancello dalla lista di scansioni i beacon che non
-                        // sono più visibili dopo un timeout
-    for (int i = ibeacon_scanned_list.size() - 1; i >= 0; i--) {
-      Serial.println("visiting ");
-      Serial.println(ibeacon_scanned_list.at(i).minor);
-      if (getCurrentTime() - ibeacon_scanned_list.at(i).lastTimestamp >=
-          BEACON_TIMEOUT_SECONDS) {
-        Serial.print("erasing ");
-        Serial.println(ibeacon_scanned_list.at(i).minor);
-        ibeacon_scanned_list.erase(ibeacon_scanned_list.begin() + i);
-      }
-    }
-  }*/
-
   String JSON = "{\"eventsLog\":[";
   auto it = scansMap.begin();
   while (it != scansMap.end()) {
@@ -82,14 +60,17 @@ void sendCollectionToServer() {
     it++;
   }
   JSON += "{}]}";
+  Serial.println(F("JSON generated"));
   scansMap.swap(oldMap);  // metto la mappa in un'altra vuota e la azzero, in
                           // modo da avere sia le letture che ho appena inviato
                           // che una mappa vuota in cui salvare i dati che
                           // ricevo nel frattempo che finisca la richiesta http
 
-  // Serial.println(JSON);
+  Serial.println(F("Map swapped"));
   requestUpdate.body = JSON;
+  Serial.println(F("before Http sent"));
   getHttpResponse(&requestUpdate, callBack_response, &display);
+  Serial.println(F("Http sent"));
 }
 
 void callBack_response(String response) {

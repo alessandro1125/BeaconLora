@@ -129,7 +129,7 @@ void setup() {
 
 void loop() {
   delay(10);
-  // Serial.println(F("Loop"));
+  display.setRow(1, "Ready");
   if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitiamo un crash
   if (current_configs->type == DEVICE_TYPE_INVALID) {
     delay(1000);
