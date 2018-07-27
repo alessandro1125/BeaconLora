@@ -16,9 +16,8 @@
 
 #define seconds() (millis() / 1000)
 #define DIST_ACCEPTANCE_INTERVAL 1.0
-#define SERVER_UPDATE_INTERVAL_SECONDS 120
+#define SERVER_UPDATE_INTERVAL_SECONDS 60
 #define RAM_REF_INTERVAL_MILLIS 1000
-#define BEACON_TIMEOUT_SECONDS 120
 
 // comment if device has no display
 #define HAS_DISPLAY
@@ -30,8 +29,8 @@ struct scan_result {
 
 typedef std::vector<scan_result> ScansCollection;
 typedef std::unordered_map<uint64_t, ScansCollection> DevMap;
-DevMap* scansMap;
-DevMap* oldMap;
+DevMap scansMap;
+DevMap oldMap;
 
 #ifdef HAS_DISPLAY
 #define U8X8_POINTER() &u8g2
@@ -60,22 +59,28 @@ void setup() {
   initSPISerialAndDisplay();
   init_nvs();
 
-  display.setRow(7, (String(esp_get_free_heap_size()) + " B").c_str());
+  display.setRow(7, String(ESP.getFreeHeap()).c_str());
   display.refresh();
   // read old configs from memory
   config_params_t config_params = readConfigsFromMemory();
-  Serial.println(config_params.type);
+  Serial.println("configs read");
   // codice per il softAP
   readMacAddress();
-  setDeviceMode(APP_PURPOSES::LOCATION);
+
+  wifi_config wifiConfig = wifi_config();
+  Serial.println("mac address read");
+  wifiConfig.setDeviceMode(APP_PURPOSES::LOCATION);
+  Serial.println("Purpose set");
   vTaskStartScheduler();
-  init(&config_params, address.toString(), &display);
-  config_params_t* user_params = clientListener();
-// qui ho le config giuste
-#ifdef HAS_DISPLAY
+  delay(10);
+  Serial.println("scheduler started");
+
+  char* addrch = address.toCharArray();
+  wifiConfig.init(&config_params, addrch, &display);
+  DELETE_ARRAY(addrch);
+  config_params_t* user_params = wifiConfig.clientListener();
+  // qui ho le config giuste
   display.clear();
-  display.refresh();
-#endif
   if (user_params->type == DEVICE_TYPE_INVALID) {
     current_configs->type = DEVICE_TYPE_INVALID;
     display.setRow(1, "Reboot ");
@@ -88,15 +93,13 @@ void setup() {
     initLoRa(address, SS, RST, DI0);
   else
     myAddress = address;
+  if (current_configs->type == DEVICE_TYPE_NODE)
+    subscribeToReceivePacketEvent(handleResponsePacket);
 
   if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
     initHTTPTask();
     initTimeSync(&display);
-    subscribeToReceivePacketEvent(handleResponsePacket);
-    scansMap = new DevMap();
-    oldMap = new DevMap();
   }
-
   // ble init
 
   if (user_params->type != DEVICE_TYPE_NODE) {
@@ -112,17 +115,50 @@ void setup() {
       user_params->bt_configs.noise != 0)
     updateRSSIParams(user_params->bt_configs.referencePower,
                      user_params->bt_configs.noise != 0);
-    // end ble init
+  // end ble init
 
-#ifdef HAS_DISPLAY
   display.clear();
   display.setRow(1, "Ready");
   display.refresh();
   printMACAddressToScreen(6);
-#endif
-
-  delay(1000);
   nodeLastCollectionSent = seconds();
+  // delete user_params;  // wifi config mi ritorna una nuova istanza,
+  // initWithConfigParams se ne fa una copia e questa resta
+  // in più
+}
+
+void loop() {
+  delay(10);
+  // Serial.println(F("Loop"));
+  if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitiamo un crash
+  if (current_configs->type == DEVICE_TYPE_INVALID) {
+    delay(1000);
+  } else {
+    if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
+      display.setRow(4, "Free Ram");
+      delay(10);
+      const char* ram = String(ESP.getFreeHeap()).c_str();
+      Serial.println(ram);
+      display.setRow(5, ram);
+      printMACAddressToScreen(6);
+      lastRamRef = millis();
+    }
+
+    if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
+      if (seconds() - nodeLastCollectionSent >=
+          SERVER_UPDATE_INTERVAL_SECONDS) {
+        if (WiFi.status() != WL_CONNECTED)
+          connectToWifi(current_configs->wifi_configs, &display, false);
+        sendCollectionToServer();
+        nodeLastCollectionSent = seconds();
+        display.clear();
+      }
+    }
+    if (current_configs->type == DEVICE_TYPE_NODE) checkIncoming();
+    delay(10);
+  }
+  delay(100);
+  display.refresh();
 }
 
 void initSPISerialAndDisplay() {
@@ -139,36 +175,6 @@ void readMacAddress() {
   uint8_t mac[6];
   esp_efuse_mac_get_default(mac);
   address = MacAddress(mac);
-  Serial.println((address.toString()));
-}
-
-void loop() {
-  if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitiamo un crash
-  if (current_configs->type == DEVICE_TYPE_INVALID) {
-    delay(1000);
-  } else {
-    if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
-      display.setRow(4, "Free Ram");
-      delay(10);
-      const char* ram = String(ESP.getFreeHeap()).c_str();
-      Serial.println(ram);
-      display.setRow(5, ram);
-      display.refresh();
-      printMACAddressToScreen(6);
-      lastRamRef = millis();
-    }
-
-    if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
-      if (seconds() - nodeLastCollectionSent >=
-          SERVER_UPDATE_INTERVAL_SECONDS) {
-        sendCollectionToServer();
-        nodeLastCollectionSent = seconds();
-      }
-    }
-    if (current_configs->type == DEVICE_TYPE_NODE) checkIncoming();
-    delay(10);
-  }
-  delay(100);
 }
 
 void handleResponsePacket(Packet packet) {
@@ -184,8 +190,7 @@ void printMACAddressToScreen(int baseRow) {
   char* mc = address.toCharArray();
   display.setRow(baseRow, "MAC");
   display.setRow(baseRow + 1, mc);
-  display.refresh();
-  DELETE_ARRAY(mc)
+  DELETE_ARRAY(mc);
 }
 
 void ble_ibeacon_init(void) {

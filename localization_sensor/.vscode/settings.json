@@ -11,7 +11,10 @@
 		"array": "cpp",
 		"deque": "cpp",
 		"unordered_set": "cpp",
-		"*.tcc": "cpp"
+		"*.tcc": "cpp",
+		"system_error": "cpp",
+		"utility": "cpp",
+		"functional": "cpp"
 	},
 	"editor.formatOnSave": true,
 	"C_Cpp.clang_format_fallbackStyle": "Google",
