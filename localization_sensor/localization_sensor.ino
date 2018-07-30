@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <unordered_map>
 #include <vector>
 #include "LocationProtocol.h"
@@ -16,7 +17,7 @@
 
 #define seconds() (millis() / 1000)
 #define DIST_ACCEPTANCE_INTERVAL 1.0
-#define SERVER_UPDATE_INTERVAL_SECONDS 60
+#define SERVER_UPDATE_INTERVAL_SECONDS 30
 #define RAM_REF_INTERVAL_MILLIS 1000
 
 // comment if device has no display
@@ -41,7 +42,7 @@ DevMap oldMap;
 MacAddress address;
 
 request_instance_t requestUpdate = {
-    "messages.geisoft.org", "/services/beacontrace/feedposition", "", "POST"};
+    "messages.geisoft.org", "/services/beacontrace/feedposition", NULL, "POST"};
 
 unsigned long nodeLastCollectionSent;
 unsigned long lastRamRef;
@@ -63,17 +64,17 @@ void setup() {
   display.refresh();
   // read old configs from memory
   config_params_t config_params = readConfigsFromMemory();
-  Serial.println("configs read");
+  Serial.println(F("configs read"));
   // codice per il softAP
   readMacAddress();
 
   wifi_config wifiConfig = wifi_config();
-  Serial.println("mac address read");
+  Serial.println(F("mac address read"));
   wifiConfig.setDeviceMode(APP_PURPOSES::LOCATION);
-  Serial.println("Purpose set");
+  Serial.println(F("Purpose set"));
   vTaskStartScheduler();
   delay(10);
-  Serial.println("scheduler started");
+  Serial.println(F("scheduler started"));
 
   char* addrch = address.toCharArray();
   wifiConfig.init(&config_params, addrch, &display);
@@ -122,14 +123,10 @@ void setup() {
   display.refresh();
   printMACAddressToScreen(6);
   nodeLastCollectionSent = seconds();
-  // delete user_params;  // wifi config mi ritorna una nuova istanza,
-  // initWithConfigParams se ne fa una copia e questa resta
-  // in più
 }
 
 void loop() {
   delay(10);
-  display.setRow(1, "Ready");
   if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitiamo un crash
   if (current_configs->type == DEVICE_TYPE_INVALID) {
     delay(1000);
@@ -147,11 +144,14 @@ void loop() {
     if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
       if (seconds() - nodeLastCollectionSent >=
           SERVER_UPDATE_INTERVAL_SECONDS) {
-        if (WiFi.status() != WL_CONNECTED)
+        display.clear();
+        if (WiFi.status() != WL_CONNECTED) {
+          Serial.println(F("Reconnect"));
           connectToWifi(current_configs->wifi_configs, &display, false);
+        } else
+          display.setRow(1, "Ready");
         sendCollectionToServer();
         nodeLastCollectionSent = seconds();
-        display.clear();
       }
     }
     if (current_configs->type == DEVICE_TYPE_NODE) checkIncoming();

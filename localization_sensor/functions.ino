@@ -21,7 +21,7 @@ void distanceScanCompletedCallback(MacAddress senderAddress,
 
 void sendCollectionToServer() {
   Serial.println(F("Inside sendcollection"));
-  String JSON = "{\"eventsLog\":[";
+  requestUpdate.body = new String("{\"eventsLog\":[");
   auto it = scansMap.begin();
   while (it != scansMap.end()) {
     uint64_t senderAddress = it->first;
@@ -29,7 +29,7 @@ void sendCollectionToServer() {
     ScansCollection* scans = &(it->second);
     for (size_t i = 0; i < (*scans).size(); i++) {
       char uuid[36];
-      unsigned long time = (*scans)[i].timestamp;
+      unsigned long scan_time = (*scans)[i].timestamp;
       sprintf(uuid, "%x%x%x%x-%x%x-%x%x-%x%x%x%x%x%x%x%x",
               (unsigned char)(*scans)[i].beacon.proximity_uuid[0],
               (unsigned char)(*scans)[i].beacon.proximity_uuid[1],
@@ -47,19 +47,24 @@ void sendCollectionToServer() {
               (unsigned char)(*scans)[i].beacon.proximity_uuid[13],
               (unsigned char)(*scans)[i].beacon.proximity_uuid[14],
               (unsigned char)(*scans)[i].beacon.proximity_uuid[15]);
-      JSON +=
+      *requestUpdate.body +=
           "{\"uuidBeacon\":\"" + wifi_config::charArrayToString(uuid) + "\",";
-      JSON += "\"majorVersion\":" + String((*scans)[i].beacon.major) + ",";
-      JSON += "\"minorVersion\":" + String((*scans)[i].beacon.minor) + ",";
-      JSON += "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
-      JSON += "\"timePosition\":" + String(time) + ",";
-      JSON += "\"latitudeDevice\": 0.000000, \"longitudeDevice\": 0.000000,";
-      JSON += "\"distanceBeacon\":" + String((*scans)[i].beacon.distance);
-      JSON += "},";
+      *requestUpdate.body +=
+          "\"majorVersion\":" + String((*scans)[i].beacon.major) + ",";
+      *requestUpdate.body +=
+          "\"minorVersion\":" + String((*scans)[i].beacon.minor) + ",";
+      *requestUpdate.body +=
+          "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
+      *requestUpdate.body += "\"timePosition\":" + String(scan_time) + ",";
+      *requestUpdate.body +=
+          "\"latitudeDevice\": 0.000000, \"longitudeDevice\": 0.000000,";
+      *requestUpdate.body +=
+          "\"distanceBeacon\":" + String((*scans)[i].beacon.distance);
+      *requestUpdate.body += "},";
     }
     it++;
   }
-  JSON += "{}]}";
+  *requestUpdate.body += "{}]}";
   Serial.println(F("JSON generated"));
   scansMap.swap(oldMap);  // metto la mappa in un'altra vuota e la azzero, in
                           // modo da avere sia le letture che ho appena inviato
@@ -67,14 +72,13 @@ void sendCollectionToServer() {
                           // ricevo nel frattempo che finisca la richiesta http
 
   Serial.println(F("Map swapped"));
-  requestUpdate.body = JSON;
   Serial.println(F("before Http sent"));
-  getHttpResponse(&requestUpdate, callBack_response, &display);
+  getHttpResponse(&requestUpdate, callBack_response);
   Serial.println(F("Http sent"));
 }
 
 void callBack_response(String response) {
-  requestUpdate.body = "";
+  delete (requestUpdate.body);
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(response);
   if (!root.success()) {
