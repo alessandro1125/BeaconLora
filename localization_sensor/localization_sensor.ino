@@ -1,4 +1,6 @@
-#include <Arduino.h>
+//#include <Arduino.h>
+#include <FreeRTOS.h>
+#include <mutex>  // std::mutex
 #include <unordered_map>
 #include <vector>
 #include "LocationProtocol.h"
@@ -7,6 +9,7 @@
 #include "esp_system.h"
 #include "ibeacon_message_handler.h"
 #include "init_configs_tools.h"
+#include "loop_watchdog.h"
 #include "time_sync.h"
 #include "wifi_config.h"
 
@@ -18,20 +21,18 @@
 #define seconds() (millis() / 1000)
 #define DIST_ACCEPTANCE_INTERVAL 1.0
 #define SERVER_UPDATE_INTERVAL_SECONDS 30
-#define RAM_REF_INTERVAL_MILLIS 1000
+#define RAM_REF_INTERVAL_MILLIS 5000
 
 // comment if device has no display
 #define HAS_DISPLAY
 
-struct scan_result {
-  ibeacon_instance_t beacon;
-  unsigned long timestamp;
-};
-
-typedef std::vector<scan_result> ScansCollection;
+typedef std::vector<ibeacon_instance_t> ScansCollection;
 typedef std::unordered_map<uint64_t, ScansCollection> DevMap;
-DevMap scansMap;
-DevMap oldMap;
+
+DevMap scansMap;  // mappa che conterrà le scansioni dei beacon
+DevMap oldMap;  // mappa che verrà utilizzata per l'invio dei dati al server in
+                // modo da lasciare scansMap libera di essere utilizzata nel
+                // frattempo
 
 #ifdef HAS_DISPLAY
 #define U8X8_POINTER() &u8g2
@@ -39,10 +40,12 @@ DevMap oldMap;
 #define U8X8_POINTER() &display
 #endif
 
-MacAddress address;
+MacAddress address;  // indirizzo mac di questo dispositivo
 
-request_instance_t requestUpdate = {
-    "messages.geisoft.org", "/services/beacontrace/feedposition", NULL, "POST"};
+request_instance_t requestUpdate =
+    request_instance_t(String("messages.geisoft.org"),
+                       String("/services/beacontrace/feedposition"),
+                       (String*)NULL, String("POST"));
 
 unsigned long nodeLastCollectionSent;
 unsigned long lastRamRef;
@@ -52,56 +55,85 @@ U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2(U8G2_R0, /* clock=*/15, /* data=*/4,
 
 static Display display;
 
+static int timeoutCount =
+    0;  // tengo il conto delle volte consecutive in cui è andata in timeout la
+        // connessione http. Se la connessione va in timeout i dati che dovevano
+        // essere inviati non vengono eliminati per poter essere reinviati. Se
+        // va in timeout troppe volte di seguito la stringa di request htto
+        // diventa troppo grande per essere contenuta in memoria e questo
+        // innesca un circolo vizioso in cui il request inviato è vuoto e quidi
+        // il client va sempre in timeout e quindi genera richieste sempre più
+        // grandi che ovviamente poi non riesce ad inviare. Per evitare tali
+        // situazioni tengo il conto di quante volte consecutive sono andato in
+        // timeout e se ne ho più di 2 elimino i dati che altrimenti perderei
+        // comunque per non perdere anche un numero indefinito di dati
+        // successivi. Si spera che questo non debba mai succedere ma dato che
+        // il pericolo che succeda è reale questa logica viene mantenuta.
+
+std::mutex mutex;  // mutex per evitare accessi alla risorsa scansMap
+
+LoopWatchdog watchdog;
+
 void setup() {
+  // vTaskStartScheduler();
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW);  // set GPIO16 low to reset OLED
   delay(50);
   digitalWrite(16, HIGH);  // while OLED is running, must set GPIO16 in high
   initSPISerialAndDisplay();
+  delay(10);
+  Serial.println(F("Serial initialized"));
   init_nvs();
 
+  Serial.println(F("nvs initialized"));
+  delay(100);
   display.setRow(7, String(ESP.getFreeHeap()).c_str());
   display.refresh();
-  // read old configs from memory
+
+  //>>>>>>>> CONFIGURAZIONI UTENTE VIA WIFI
   config_params_t config_params = readConfigsFromMemory();
   Serial.println(F("configs read"));
-  // codice per il softAP
   readMacAddress();
 
   wifi_config wifiConfig = wifi_config();
   Serial.println(F("mac address read"));
   wifiConfig.setDeviceMode(APP_PURPOSES::LOCATION);
   Serial.println(F("Purpose set"));
-  vTaskStartScheduler();
-  delay(10);
-  Serial.println(F("scheduler started"));
 
   char* addrch = address.toCharArray();
+  Serial.println(String(addrch));
   wifiConfig.init(&config_params, addrch, &display);
   DELETE_ARRAY(addrch);
   config_params_t* user_params = wifiConfig.clientListener();
-  // qui ho le config giuste
+
   display.clear();
   if (user_params->type == DEVICE_TYPE_INVALID) {
-    current_configs->type = DEVICE_TYPE_INVALID;
+    current_configs.load()->type = DEVICE_TYPE_INVALID;
     display.setRow(1, "Reboot ");
     display.refresh();
     return;
   }
   initWithConfigParams(user_params, &display, true);  // dopo ci  va true
 
-  if (current_configs->type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  //<<<<<<<< FINE
+
+  //>>>>>>>> INIZIALIZZAZIONE LORA
+  if (current_configs.load()->type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     initLoRa(address, SS, RST, DI0);
   else
     myAddress = address;
-  if (current_configs->type == DEVICE_TYPE_NODE)
+  if (current_configs.load()->type == DEVICE_TYPE_NODE)
     subscribeToReceivePacketEvent(handleResponsePacket);
+  //<<<<<<<< FINE
 
-  if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
+  //>>>>>>>> INIZIALIZZAZIONE HTTP
+  if (current_configs.load()->type != DEVICE_TYPE_TERMOMETER) {
     initHTTPTask();
-    initTimeSync(&display);
+    initTimeSync(&display, timeSyncedCallback);
   }
-  // ble init
+  //<<<<<<<< FINE
+
+  //>>>>>>>> INIZIALIZZAZIONE BLUETOOTH
 
   if (user_params->type != DEVICE_TYPE_NODE) {
     nvs_flash_init();
@@ -115,60 +147,79 @@ void setup() {
   if (user_params->bt_configs.referencePower != 0 &&
       user_params->bt_configs.noise != 0)
     updateRSSIParams(user_params->bt_configs.referencePower,
-                     user_params->bt_configs.noise != 0);
-  // end ble init
+                     user_params->bt_configs.noise);
+  //<<<<<<<<< FINE
 
   display.clear();
-  display.setRow(1, "Ready");
-  display.refresh();
+  display.setRow(1, "Attivo");
   printMACAddressToScreen(6);
+  display.refresh();
   nodeLastCollectionSent = seconds();
 }
 
+void timeSyncedCallback() {
+  time_t now;
+  time(&now);
+  watchdog.resetWatchdog();  // starting the watchdog
+                             // controlling hangings of looptask
+  watchdog.startWatchdog();
+}
+
 void loop() {
-  delay(10);
-  if (esp_get_free_heap_size() < 5000) ESP.restart();  // evitiamo un crash
-  if (current_configs->type == DEVICE_TYPE_INVALID) {
+  // Serial.println(F("LOOP"));
+  watchdog.resetWatchdog();
+  // delay(10);
+  if (ESP.getFreeHeap() < 15000)
+    ESP.restart();  // evitiamo un crash, resta piantato altrimenti
+  if (current_configs.load()->type == DEVICE_TYPE_INVALID) {
     delay(1000);
   } else {
     if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
-      display.setRow(4, "Free Ram");
+      display.setRow(4, "Ram libera");
       delay(10);
       const char* ram = String(ESP.getFreeHeap()).c_str();
-      Serial.println(ram);
+      // Serial.println(ram);
       display.setRow(5, ram);
       printMACAddressToScreen(6);
       lastRamRef = millis();
     }
 
-    if (current_configs->type != DEVICE_TYPE_TERMOMETER) {
+    if (current_configs.load()->type != DEVICE_TYPE_TERMOMETER) {
       if (seconds() - nodeLastCollectionSent >=
           SERVER_UPDATE_INTERVAL_SECONDS) {
         display.clear();
         if (WiFi.status() != WL_CONNECTED) {
-          Serial.println(F("Reconnect"));
-          connectToWifi(current_configs->wifi_configs, &display, false);
+          Serial.println(F("Reconnectiong"));
+          display.setRow(3, "Riconnessione");
+          connectToWifi(current_configs.load()->wifi_configs, &display, false);
         } else
-          display.setRow(1, "Ready");
+          display.setRow(1, "Attivo");
         sendCollectionToServer();
         nodeLastCollectionSent = seconds();
       }
     }
-    if (current_configs->type == DEVICE_TYPE_NODE) checkIncoming();
-    delay(10);
+    if (current_configs.load()->type == DEVICE_TYPE_NODE) checkIncoming();
   }
-  delay(100);
   display.refresh();
+
+  if (current_configs.load()->type == DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+    delay(500);  // posso andare proprio tranquillo con il delay così lascio
+                 // spazio al bluetooth
+  else
+    delay(100);
 }
 
 void initSPISerialAndDisplay() {
   SPI.begin(5, 19, 27, 18);
 #ifdef HAS_DISPLAY
   display.init(U8X8_POINTER(), true);  // false se non ha il display
-  display.setRow(1, "Initializing");
+  display.setRow(1, "Inizializzo");
   display.refresh();
+#else
+  dispaly.init(U8X8_POINTER(), false);
 #endif
   Serial.begin(115200);
+  while (!Serial) delay(100);
 }
 
 void readMacAddress() {
@@ -179,7 +230,6 @@ void readMacAddress() {
 
 void handleResponsePacket(Packet packet) {
   if (isLocationScanPacket(packet.type, packet.packetLength)) {
-    // readTempAndSendToServerIfNecessary(&packet);
     packet.printPacket();
     distanceScanCompletedCallback(
         packet.sender, decodeBeaconFromPacket((uint8_t*)packet.body));

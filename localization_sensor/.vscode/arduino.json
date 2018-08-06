@@ -1,7 +1,8 @@
 {
-    "board": "espressif:esp32:heltec_wifi_lora_32",
-    "configuration": "FlashFreq=80,UploadSpeed=921600",
+    "board": "espressif:esp32:esp32",
+    "configuration": "PSRAM=disabled,PartitionScheme=default,FlashMode=qio,FlashFreq=80,FlashSize=4M,UploadSpeed=921600,DebugLevel=none",
     "port": "COM3",
     "sketch": "localization_sensor.ino",
-    "output": "C:\\Users\\Ivano\\Documents\\loc_sen_build"
+    "output": "C:\\Users\\Ivano\\Documents\\loc_sen_build",
+    "debugger": "jlink"
 }

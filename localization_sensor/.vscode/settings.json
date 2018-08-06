@@ -14,7 +14,10 @@
 		"*.tcc": "cpp",
 		"system_error": "cpp",
 		"utility": "cpp",
-		"functional": "cpp"
+		"functional": "cpp",
+		"ratio": "cpp",
+		"type_traits": "cpp",
+		"mutex": "cpp"
 	},
 	"editor.formatOnSave": true,
 	"C_Cpp.clang_format_fallbackStyle": "Google",

@@ -1,102 +1,160 @@
 void distanceScanCompletedCallback(MacAddress senderAddress,
                                    ibeacon_instance_t beacon) {
+  while (
+      !mutex.try_lock()) {  // aspetto fino a quando ho l'accesso esclusivo
+                            // alla risorsa: questa è una funzione che viene
+                            // utilizzata sia dal thread del ble che dal thread
+                            // http e dal thread principale. Io voglio che solo
+                            // uno dei tre la stia eseguendo in contemporanea
+    delay(10);
+  }
+  Serial.print(F("Mutex locked by: "));
+  Serial.println(pcTaskGetTaskName(NULL));
   auto got = scansMap.find(senderAddress.value);
+
   if (got == scansMap.end()) {
     ScansCollection toInsert = ScansCollection();
-    toInsert.push_back({beacon, getCurrentTime()});
+    toInsert.push_back(beacon);
     scansMap.insert({senderAddress.value, toInsert});
+    Serial.println(F("Mutex unlocked"));
+    mutex.unlock();  // libero la risorsa
     return;
   }
+
   ScansCollection* vec = &got->second;
   if ((*vec).empty()) {
-    (*vec).push_back({beacon, getCurrentTime()});
+    (*vec).push_back(beacon);
+    Serial.println(F("Mutex unlocked"));
+    mutex.unlock();  // libero la risorsa
     return;
   }
-  float lastDist = (*((*vec).end() - 1)).beacon.distance;
+
+  float lastDist = (*((*vec).end() - 1)).distance;
   if (beacon.distance < lastDist - DIST_ACCEPTANCE_INTERVAL ||
       beacon.distance > lastDist + DIST_ACCEPTANCE_INTERVAL) {
-    (*vec).push_back({beacon, getCurrentTime()});
+    (*vec).push_back(beacon);
   }
+  Serial.println(F("Mutex unlocked"));
+  mutex.unlock();  // libero la risorsa
 }
 
 void sendCollectionToServer() {
-  Serial.println(F("Inside sendcollection"));
-  requestUpdate.body = new String("{\"eventsLog\":[");
-  auto it = scansMap.begin();
-  while (it != scansMap.end()) {
-    uint64_t senderAddress = it->first;
-    Serial.println(MacAddress(senderAddress).toString());
-    ScansCollection* scans = &(it->second);
-    for (size_t i = 0; i < (*scans).size(); i++) {
-      char uuid[36];
-      unsigned long scan_time = (*scans)[i].timestamp;
-      sprintf(uuid, "%x%x%x%x-%x%x-%x%x-%x%x%x%x%x%x%x%x",
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[0],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[1],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[2],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[3],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[4],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[5],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[6],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[7],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[8],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[9],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[10],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[11],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[12],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[13],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[14],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[15]);
-      *requestUpdate.body +=
-          "{\"uuidBeacon\":\"" + wifi_config::charArrayToString(uuid) + "\",";
-      *requestUpdate.body +=
-          "\"majorVersion\":" + String((*scans)[i].beacon.major) + ",";
-      *requestUpdate.body +=
-          "\"minorVersion\":" + String((*scans)[i].beacon.minor) + ",";
-      *requestUpdate.body +=
-          "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
-      *requestUpdate.body += "\"timePosition\":" + String(scan_time) + ",";
-      *requestUpdate.body +=
-          "\"latitudeDevice\": 0.000000, \"longitudeDevice\": 0.000000,";
-      *requestUpdate.body +=
-          "\"distanceBeacon\":" + String((*scans)[i].beacon.distance);
-      *requestUpdate.body += "},";
-    }
-    it++;
+  while (
+      !mutex.try_lock()) {  // aspetto il momento in cui nessuno sta accedendo
+                            // alla risorsa scansMap per poterci accedere
+    delay(10);
   }
-  *requestUpdate.body += "{}]}";
-  Serial.println(F("JSON generated"));
+  Serial.print(F("Mutex locked by: "));
+  Serial.println(pcTaskGetTaskName(NULL));
+
   scansMap.swap(oldMap);  // metto la mappa in un'altra vuota e la azzero, in
                           // modo da avere sia le letture che ho appena inviato
                           // che una mappa vuota in cui salvare i dati che
                           // ricevo nel frattempo che finisca la richiesta http
 
-  Serial.println(F("Map swapped"));
-  Serial.println(F("before Http sent"));
+  // Da qui in poi non uso più scansMap quindi posso liberare il mutex
+
+  Serial.println(F("Mutex unlocked"));
+  mutex.unlock();
+
+  requestUpdate.body = new String("{\"eventsLog\":[");
+  auto it = oldMap.begin();
+  while (it != oldMap.end()) {
+    uint64_t senderAddress = it->first;
+    Serial.println(MacAddress(senderAddress).toString());
+    ScansCollection* scans = &(it->second);
+    for (size_t i = 0; i < (*scans).size(); i++) {
+      char uuid[36];
+      unsigned long scan_time = (*scans)[i].lastTimestamp;
+      sprintf(uuid, "%x%x%x%x-%x%x-%x%x-%x%x%x%x%x%x%x%x",
+              (unsigned char)(*scans)[i].proximity_uuid[0],
+              (unsigned char)(*scans)[i].proximity_uuid[1],
+              (unsigned char)(*scans)[i].proximity_uuid[2],
+              (unsigned char)(*scans)[i].proximity_uuid[3],
+              (unsigned char)(*scans)[i].proximity_uuid[4],
+              (unsigned char)(*scans)[i].proximity_uuid[5],
+              (unsigned char)(*scans)[i].proximity_uuid[6],
+              (unsigned char)(*scans)[i].proximity_uuid[7],
+              (unsigned char)(*scans)[i].proximity_uuid[8],
+              (unsigned char)(*scans)[i].proximity_uuid[9],
+              (unsigned char)(*scans)[i].proximity_uuid[10],
+              (unsigned char)(*scans)[i].proximity_uuid[11],
+              (unsigned char)(*scans)[i].proximity_uuid[12],
+              (unsigned char)(*scans)[i].proximity_uuid[13],
+              (unsigned char)(*scans)[i].proximity_uuid[14],
+              (unsigned char)(*scans)[i].proximity_uuid[15]);
+      *requestUpdate.body += "{\"uuidBeacon\":\"" + String(uuid) + "\",";
+      *requestUpdate.body +=
+          "\"majorVersion\":" + String((*scans)[i].major) + ",";
+      *requestUpdate.body +=
+          "\"minorVersion\":" + String((*scans)[i].minor) + ",";
+      *requestUpdate.body +=
+          "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
+      *requestUpdate.body += "\"timePosition\":" + String(scan_time) + ",";
+      *requestUpdate.body +=
+          "\"latitudeDevice\": " +
+          String(current_configs.load()->loc_configs.x_position) +
+          ", \"longitudeDevice\": " +
+          String(current_configs.load()->loc_configs.y_position) + ",";
+      *requestUpdate.body +=
+          "\"distanceBeacon\":" + String((*scans)[i].distance);
+      *requestUpdate.body += "},";
+    }
+    it++;
+  }
+  *requestUpdate.body += "{}]}";
+  Serial.println(F("About to call gethttpresponse"));
   getHttpResponse(&requestUpdate, callBack_response);
-  Serial.println(F("Http sent"));
 }
+
+// ATTENZIONE: questa funzione viene eseguita all'interno del task http anche se
+// è dichiarata qui, anche addOldMapToScansMap
 
 void callBack_response(String response) {
   delete (requestUpdate.body);
+
+  if (response == "timeout") {
+    Serial.print(F("TimeoutCount: "));
+    Serial.println(timeoutCount);
+    display.setRow(2, "Conn. timeout");
+    checkEccessiveTimeouts();
+    return;
+  }
+
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(response);
+
   if (!root.success()) {
     Serial.println("parseJsonObject failed");
-    // oldMap.swap(scanMap);
-    addOldMapToScansMap();  // se non sono riuscito a mettere i dati sul server
-                            // li reinserisco nella mappa
+    display.setRow(2, "Conn. fallita");
+    checkEccessiveTimeouts();
+
   } else {
     const char* resultBuffer = root["MessageText"];
     String result = String(resultBuffer);
+
     if (result == "Action Completed") {
       Serial.println("Action completed");
+      display.setRow(2, "Op. completata");
       eraseOldMap();
+      timeoutCount = 0;
+
     } else {
+      display.setRow(2, "Conn. fallita");
       Serial.println("Malformed JSON");
-      addOldMapToScansMap();
+      checkEccessiveTimeouts();
     }
   }
+}
+
+void checkEccessiveTimeouts() {
+  timeoutCount++;
+  if (timeoutCount > 2) {
+    eraseOldMap();
+    timeoutCount = 0;
+  } else
+    addOldMapToScansMap();  // se non sono riuscito a mettere i dati sul
+                            // server li reinserisco nella mappa
 }
 
 void addOldMapToScansMap() {
@@ -105,7 +163,7 @@ void addOldMapToScansMap() {
     MacAddress devMac = MacAddress(it->first);
     auto vec_it = it->second.begin();
     while (vec_it != it->second.end()) {
-      distanceScanCompletedCallback(devMac, (*vec_it).beacon);
+      distanceScanCompletedCallback(devMac, (*vec_it));
       vec_it++;
     }
     it++;

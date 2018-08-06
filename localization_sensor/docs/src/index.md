@@ -4,15 +4,15 @@ Questo sketch permette di utlizzare le [librerie esp32](https://github.com/Sauro
 
 **Tabella dei contenuti:**
 
-* [Struttura del sistema](#struttura-del-sistema)
-	* [Nodo](#nodo)
-	* [Sensore](#sensore)
-	* [Sensore autonomo](#sensore-autonomo)
-* [Localizzazione bluetooth](#localizzazione-bluetooth)
-* [Realizzazione del sistema](#realizzazione-del-sistema)
-	* [Descrizione delle tre categorie di configurazione](#descrizione-delle-tre-categorie-di-configurazione)
-	* [Inizializzazione dei dispositivi](#inizializzazione-dei-dispositivi)
-	* [Fase operativa](#fase-operativa)
+- [Struttura del sistema](#struttura-del-sistema)
+	- [Nodo](#nodo)
+	- [Sensore](#sensore)
+	- [Sensore autonomo](#sensore-autonomo)
+- [Localizzazione bluetooth](#localizzazione-bluetooth)
+- [Realizzazione del sistema](#realizzazione-del-sistema)
+	- [Descrizione delle tre categorie di configurazione](#descrizione-delle-tre-categorie-di-configurazione)
+	- [Inizializzazione dei dispositivi](#inizializzazione-dei-dispositivi)
+	- [Fase operativa](#fase-operativa)
 
 ## Struttura del sistema
 
@@ -96,7 +96,7 @@ Al momento vengono aggregate 30 misurazioni consecutive per beacon che, con un p
 
 I dispositivi ESP32 sono programmati in modo da poter svolgere uno qualsiasi dei tre diversi ruoli descritti all'inizio. Il ruolo del dispositivo viene deciso dall'utente nel momento dell'accensione, a seconda delle proprie necessità e può essere cambiato in ogni momento riaccendendo il dispositivo.
 
-Al momento dell'accensione infatti l'ESP32 genera una rete WiFi con come nome il proprio indirizzo mac, che l'utente può trovare mostrato sul display sotto il titolo `MAC`.    
+Al momento dell'accensione infatti l'ESP32 genera una rete WiFi con come nome il proprio indirizzo MAC, che l'utente può trovare mostrato sul display sotto il titolo `Indirizzo MAC`.    
 Una volta connessi a tale rete WiFi una pagina web verrà aperta automaticamente nel proprio browser. Se tale pagina non dovesse aprirsi in modo automatico vi si può accedere digitando nella barra degli indirizzi del browser l'indirizzo IP che viene visualizzato nel display del dispositivo (default 192.168.4.1). 
 
 La pagina web che verrà visualizzata permette all'utente di configurare a piacimento il proprio dispositivo. Se è già stata effettuata una inizializzazione prima di questo accesso la pagina verrà automaticamente riempita con i parametri precedenti, che possono essere cambiati.
@@ -129,7 +129,7 @@ Se si sta configurando un sensore autonomo saranno disponibili la prima e la sec
 
 	Se si lascia la spunta su `DHCP` questi parametri verranno impostati automaticamente.
 
-* **Configurazione dei parametri di rilevazione bluetooth:** Anche questi sono due campi che diventano visibili solo selezionando la casella `Avanzate` nella parte inferiore dell pagina e sono:
+* **Configurazione dei parametri di rilevazione bluetooth:** Anche questi sono due campi che diventano visibili solo selezionando la casella `Avanzate Bluetooth` nella parte inferiore dell pagina e sono:
   
 	* Potenza alla distanza di riferimento: valore di RSSI misurato ad un metro di distanza dal beacon
 	* Coefficiente di rumore: valore del rumore di disturbo presente nell'ambiente    
@@ -138,7 +138,7 @@ Se si sta configurando un sensore autonomo saranno disponibili la prima e la sec
 
 * **Configurazione della connessione LoRa:** consiste in un campo che serve ad indicare a quale nodo il sensore dovrà fare riferimento:
   
-	* Indirizzo del nodo: mac address del nodo di riferimento, può essere letto dal display del nodo in questione sotto il titolo `MAC`
+	* Indirizzo del nodo: l'indirizzo MAC del nodo di riferimento, può essere letto dal display del nodo in questione sotto il titolo `MAC`
 
 
 ### Inizializzazione dei dispositivi
@@ -149,32 +149,31 @@ Una volta che sono stati scelti i parametri voluti per il dispositivo, premendo 
  
 	* Se SSID o Password della eventuale rete WiFi a cui si vuole connettere dovessero essere sbagliati oppure se, per altri motivi, non fosse possibile per il dispositivo connettersi alla rete WiFi voluta esso mostrerà all'utente un messaggio che lo invita a premere il pulsante `Reset` per poter riaccedere alla pagina iniziale e rivedere i parametri inseriti.
 	* Se la sincronizzazione dell'orologio con il server non dovesse andare a buon fine verrà visualizzato sul display un messaggio che informa l'utente della mancata riuscita dell'operazione e il dispositivo viene automaticamente riavviato dopo 10 secondi, a meno che non venga premuto il tasto reset prima dello scadere di tale intervallo.
-* **Sensore autonomo e sensore:** Entrambi inizializzeranno il proprio modulo LoRa con il proprio mac address ed il sensore registrerà l'indirizzo del nodo a cui dovrà poi inviare i propri dati. Questi passaggi non portano ad avere errori bloccanti quindi verranno sempre eseguiti correttamente, tranne nel caso in cui il chip LoRa fosse fisicamente danneggiato.
+* **Sensore autonomo e sensore:** Entrambi inizializzeranno il proprio modulo LoRa con il proprio indirizzo MAC ed il sensore registrerà l'indirizzo del nodo a cui dovrà poi inviare i propri dati. Questi passaggi non portano ad avere errori bloccanti quindi verranno sempre eseguiti correttamente, tranne nel caso in cui il chip LoRa fosse fisicamente danneggiato.
 
 Nel momento in cui i dispositivi sono correttamente configurati essi salvano le configurazioni appena utilizzate nella loro memoria non volatile per poterle riutilizzare in avvii futuri.
 
 Se un dispositivo dovesse essere riavviato dopo che ha salvato le proprie configurazioni e l'utente non dovesse essere presente per confermare tali dati tramite connessione WiFi, esso attenderà cinque minuti, dopo i quali considererà validi i dati che ha già presenti nella propria memoria e li utilizzerà per l'inizializzazione.
 
 ### Fase operativa
-F
 A configurazione completata i dispositivi iniziano la loro fase di funzionamento vero e proprio, che differisce in base al tipo scelto:
 
 * **Nodo:** resta costantemente in ascolto sul canale LoRa di pacchetti dei sensori. Ogni volta  che ne riceve uno lo salva in una coda che viene inoltrata al server ad intervalli di 120 secondi. Se l'operazione di comunicazione della coda al server va a buon fine allora i dati inviati vengono eliminati, altrimenti i dati vengono conservati e verrà effettuato un ulteriore tentativo di invio allo scadere dell'intervallo successivo, fino a quando l'operazione avrà successo, in modo da evitare perdite di dati. Sul display del dispositivo viene mostrato:
 
-	* Connect success/ Client timeout/ Connect faied: stato dell'ultimo tentativo di connessione al server
+	* Op. completata/ Conn. timeout/ Conn. fallita: stato dell'ultimo tentativo di connessione al server
 
-* **Sensore:** resta costantemente in ascolto sul canale bluetooth di pacchetti inviati dai beacon. Per effettuare una stima più precisa della distanza esso aggrega 30 scansioni dello stesso beacon in un unico dato che poi verrà inviato in LoRa all'indirizzo del nodo inserito durante la fase iniziale. Sul display del dispositivo viene mostrato:
-
-	* Send success/ Node unreachable/ Antenna error: stato dell'ultimo tentativo di invio di messaggio al nodo
+* **Sensore:** resta costantemente in ascolto sul canale bluetooth di pacchetti inviati dai beacon. Per effettuare una stima più precisa della distanza esso aggrega 30 scansioni dello stesso beacon in un unico dato che poi verrà inviato in LoRa all'indirizzo del nodo inserito durante la fase iniziale.
 
 * **Sensore autonomo:** come il sensore anche esso rimane in ascolto dei pacchetti dei beacon ma, una volta ottenuto il dato aggregato, questo viene inserito in una coda interna che viene inviata al server con le stesse modalità previste dal nodo. Anche in questo caso viene mostrato lo stato dell'ultimo tentativo di connessione al server.
 
 Tutte le tipologie di dispositivo mostrano inoltre i seguenti messaggi sul display:
 
-* Ready: sta ad indicare che il dispositivo ha completato correttamente l'inizializzazzione
+* Attivo: sta ad indicare che il dispositivo ha completato correttamente l'inizializzazzione
 
-* Free RAM: la quantità di RAM disponibile per il programma
-* MAC: il mac address del dispositivo
+* RAM libera: la quantità di RAM disponibile per il programma
+* MAC: l'indirizzo MAC del dispositivo
+
+Può capitare che il dispositivo in modo autonomo si disconnetta dalla rete WiFi. In tal caso verrà mostrato sul display lo stato della riconnessione, che avviene automaticamente nel momento in cui la disconnessione viene rilevata, prima che si possano tornare a vedere i dati sopra descritti.
 
 Ogni volta che si vorrà cambiare le impostazioni del dipositivo sarà sufficiente premere il pulsante reset presente nel dispositivo, connettersi alla rete wifi creata e modificare i parametri voluti.
 

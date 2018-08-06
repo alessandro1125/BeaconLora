@@ -1,0 +1,12 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\Ivano\\Documents\\Arduino\\hardware\\espressif\\esp32\\**"
+            ],
+            "intelliSenseMode": "msvc-x64"
+        }
+    ],
+    "version": 4
+}
