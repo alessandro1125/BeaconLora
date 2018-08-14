@@ -74,12 +74,23 @@ std::mutex mutex;  // mutex per evitare accessi alla risorsa scansMap
 
 LoopWatchdog watchdog;
 
+/*hw_timer_t* timer = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+
+void IRAM_ATTR onTimer() {
+  portENTER_CRITICAL_ISR(&timerMux);
+  Serial.println(F("Bloccato, riavvio"));
+  ESP.restart();
+  portEXIT_CRITICAL_ISR(&timerMux);
+}*/
+
 void setup() {
-  // vTaskStartScheduler();
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW);  // set GPIO16 low to reset OLED
   delay(50);
   digitalWrite(16, HIGH);  // while OLED is running, must set GPIO16 in high
+  // timer = timerBegin(0, 80, true);
+  // timerAttachInterrupt(timer, &onTimer, true);
   initSPISerialAndDisplay();
   delay(10);
   Serial.println(F("Serial initialized"));
@@ -105,35 +116,42 @@ void setup() {
   wifiConfig.init(&config_params, addrch, &display);
   DELETE_ARRAY(addrch);
   config_params_t* user_params = wifiConfig.clientListener();
-
+  // timerAlarmWrite(timer, 1000000 * 60, true);
   display.clear();
   if (user_params->type == DEVICE_TYPE_INVALID) {
-    current_configs.load()->type = DEVICE_TYPE_INVALID;
+    current_configs.lockParams();
+    current_configs.getParams()->type = DEVICE_TYPE_INVALID;
+    current_configs.unlockParams();
     display.setRow(1, "Reboot ");
     display.refresh();
     return;
   }
   initWithConfigParams(user_params, &display, true);  // dopo ci  va true
-
+  // timerAlarmWrite(timer, 1000000 * 60, true);
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE LORA
-  if (current_configs.load()->type != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  if (current_configs.getType() != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     initLoRa(address, SS, RST, DI0);
   else
     myAddress = address;
-  if (current_configs.load()->type == DEVICE_TYPE_NODE)
+  if (current_configs.getType() == DEVICE_TYPE_NODE)
     subscribeToReceivePacketEvent(handleResponsePacket);
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE HTTP
-  if (current_configs.load()->type != DEVICE_TYPE_TERMOMETER) {
+  if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
     initHTTPTask();
-    initTimeSync(&display, timeSyncedCallback);
+    initTimeSync(timeSyncedCallback);
   }
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE BLUETOOTH
+
+  if (user_params->bt_configs.referencePower != 0 &&
+      user_params->bt_configs.noise != 0)
+    updateRSSIParams(user_params->bt_configs.referencePower,
+                     user_params->bt_configs.noise);
 
   if (user_params->type != DEVICE_TYPE_NODE) {
     nvs_flash_init();
@@ -144,10 +162,6 @@ void setup() {
     ble_ibeacon_init();
   }
 
-  if (user_params->bt_configs.referencePower != 0 &&
-      user_params->bt_configs.noise != 0)
-    updateRSSIParams(user_params->bt_configs.referencePower,
-                     user_params->bt_configs.noise);
   //<<<<<<<<< FINE
 
   display.clear();
@@ -157,9 +171,17 @@ void setup() {
   nodeLastCollectionSent = seconds();
 }
 
-void timeSyncedCallback() {
-  time_t now;
-  time(&now);
+void timeSyncedCallback(bool valid) {
+  if (!valid) {
+    display.clear();
+    display.setRow(1, "TIME SYNC:");
+    display.setRow(2, "FAILED");
+    display.setRow(3, "Reboot in 10s");
+    display.refresh();
+    delay(10000);
+
+    ESP.restart();
+  }
   watchdog.resetWatchdog();  // starting the watchdog
                              // controlling hangings of looptask
   watchdog.startWatchdog();
@@ -167,11 +189,12 @@ void timeSyncedCallback() {
 
 void loop() {
   // Serial.println(F("LOOP"));
+  // timerAlarmWrite(timer, 1000000 * 60, true);
   watchdog.resetWatchdog();
   // delay(10);
   if (ESP.getFreeHeap() < 15000)
     ESP.restart();  // evitiamo un crash, resta piantato altrimenti
-  if (current_configs.load()->type == DEVICE_TYPE_INVALID) {
+  if (current_configs.getType() == DEVICE_TYPE_INVALID) {
     delay(1000);
   } else {
     if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
@@ -184,25 +207,28 @@ void loop() {
       lastRamRef = millis();
     }
 
-    if (current_configs.load()->type != DEVICE_TYPE_TERMOMETER) {
+    if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
       if (seconds() - nodeLastCollectionSent >=
           SERVER_UPDATE_INTERVAL_SECONDS) {
         display.clear();
         if (WiFi.status() != WL_CONNECTED) {
           Serial.println(F("Reconnectiong"));
           display.setRow(3, "Riconnessione");
-          connectToWifi(current_configs.load()->wifi_configs, &display, false);
+          current_configs.lockParams();
+          connectToWifi(current_configs.getParams()->wifi_configs, &display,
+                        false);
+          current_configs.unlockParams();
         } else
           display.setRow(1, "Attivo");
         sendCollectionToServer();
         nodeLastCollectionSent = seconds();
       }
     }
-    if (current_configs.load()->type == DEVICE_TYPE_NODE) checkIncoming();
+    if (current_configs.getType() == DEVICE_TYPE_NODE) checkIncoming();
   }
   display.refresh();
 
-  if (current_configs.load()->type == DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  if (current_configs.getType() == DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     delay(500);  // posso andare proprio tranquillo con il delay così lascio
                  // spazio al bluetooth
   else
@@ -219,7 +245,6 @@ void initSPISerialAndDisplay() {
   dispaly.init(U8X8_POINTER(), false);
 #endif
   Serial.begin(115200);
-  while (!Serial) delay(100);
 }
 
 void readMacAddress() {

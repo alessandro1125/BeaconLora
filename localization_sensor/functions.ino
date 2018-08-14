@@ -92,10 +92,8 @@ void sendCollectionToServer() {
           "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
       *requestUpdate.body += "\"timePosition\":" + String(scan_time) + ",";
       *requestUpdate.body +=
-          "\"latitudeDevice\": " +
-          String(current_configs.load()->loc_configs.x_position) +
-          ", \"longitudeDevice\": " +
-          String(current_configs.load()->loc_configs.y_position) + ",";
+          "\"latitudeDevice\": " + String(current_configs.getX()) +
+          ", \"longitudeDevice\": " + String(current_configs.getY()) + ",";
       *requestUpdate.body +=
           "\"distanceBeacon\":" + String((*scans)[i].distance);
       *requestUpdate.body += "},";
@@ -114,8 +112,6 @@ void callBack_response(String response) {
   delete (requestUpdate.body);
 
   if (response == "timeout") {
-    Serial.print(F("TimeoutCount: "));
-    Serial.println(timeoutCount);
     display.setRow(2, "Conn. timeout");
     checkEccessiveTimeouts();
     return;
@@ -149,6 +145,8 @@ void callBack_response(String response) {
 
 void checkEccessiveTimeouts() {
   timeoutCount++;
+  Serial.print(F("TimeoutCount: "));
+  Serial.println(timeoutCount);
   if (timeoutCount > 2) {
     eraseOldMap();
     timeoutCount = 0;
