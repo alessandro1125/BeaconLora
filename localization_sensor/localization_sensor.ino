@@ -74,23 +74,11 @@ std::mutex mutex;  // mutex per evitare accessi alla risorsa scansMap
 
 LoopWatchdog watchdog;
 
-/*hw_timer_t* timer = NULL;
-portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-
-void IRAM_ATTR onTimer() {
-  portENTER_CRITICAL_ISR(&timerMux);
-  Serial.println(F("Bloccato, riavvio"));
-  ESP.restart();
-  portEXIT_CRITICAL_ISR(&timerMux);
-}*/
-
 void setup() {
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW);  // set GPIO16 low to reset OLED
   delay(50);
   digitalWrite(16, HIGH);  // while OLED is running, must set GPIO16 in high
-  // timer = timerBegin(0, 80, true);
-  // timerAttachInterrupt(timer, &onTimer, true);
   initSPISerialAndDisplay();
   delay(10);
   Serial.println(F("Serial initialized"));
@@ -116,7 +104,6 @@ void setup() {
   wifiConfig.init(&config_params, addrch, &display);
   DELETE_ARRAY(addrch);
   config_params_t* user_params = wifiConfig.clientListener();
-  // timerAlarmWrite(timer, 1000000 * 60, true);
   display.clear();
   if (user_params->type == DEVICE_TYPE_INVALID) {
     current_configs.lockParams();
@@ -127,7 +114,6 @@ void setup() {
     return;
   }
   initWithConfigParams(user_params, &display, true);  // dopo ci  va true
-  // timerAlarmWrite(timer, 1000000 * 60, true);
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE LORA
@@ -142,7 +128,7 @@ void setup() {
   //>>>>>>>> INIZIALIZZAZIONE HTTP
   if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
     initHTTPTask();
-    initTimeSync(timeSyncedCallback);
+    initTimeSync(timeSyncedCallback);  // TODO:: decommetare
   }
   //<<<<<<<< FINE
 
@@ -189,7 +175,6 @@ void timeSyncedCallback(bool valid) {
 
 void loop() {
   // Serial.println(F("LOOP"));
-  // timerAlarmWrite(timer, 1000000 * 60, true);
   watchdog.resetWatchdog();
   // delay(10);
   if (ESP.getFreeHeap() < 15000)
@@ -229,8 +214,8 @@ void loop() {
   display.refresh();
 
   if (current_configs.getType() == DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
-    delay(500);  // posso andare proprio tranquillo con il delay così lascio
-                 // spazio al bluetooth
+    delay(5000);  // posso andare proprio tranquillo con il
+                  // delay così lascio spazio al bluetooth
   else
     delay(100);
 }
