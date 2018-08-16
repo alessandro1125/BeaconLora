@@ -11,8 +11,18 @@
 		"array": "cpp",
 		"deque": "cpp",
 		"unordered_set": "cpp",
-		"*.tcc": "cpp"
+		"*.tcc": "cpp",
+		"system_error": "cpp",
+		"utility": "cpp",
+		"functional": "cpp",
+		"ratio": "cpp",
+		"type_traits": "cpp",
+		"mutex": "cpp"
 	},
 	"editor.formatOnSave": true,
-	"C_Cpp.clang_format_fallbackStyle": "Google"
+	"C_Cpp.clang_format_fallbackStyle": "Google",
+	"markdown.extension.preview.autoShowPreviewToSide": true,
+	"markdown.extension.toc.githubCompatibility": true,
+	"markdown.extension.toc.orderedList": false,
+	"markdown.extension.toc.unorderedList.marker": "*"
 }

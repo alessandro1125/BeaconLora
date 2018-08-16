@@ -1,156 +1,175 @@
 void distanceScanCompletedCallback(MacAddress senderAddress,
                                    ibeacon_instance_t beacon) {
-  Serial.println("Scansione ricevuta");
-  auto got = scansMap->find(senderAddress.value);
-  if (got == scansMap->end()) {
-    Serial.println("Adding device to collection");
+  while (
+      !mutex.try_lock()) {  // aspetto fino a quando ho l'accesso esclusivo
+                            // alla risorsa: questa è una funzione che viene
+                            // utilizzata sia dal thread del ble che dal thread
+                            // http e dal thread principale. Io voglio che solo
+                            // uno dei tre la stia eseguendo in contemporanea
+    delay(10);
+  }
+  Serial.print(F("Mutex locked by: "));
+  Serial.println(pcTaskGetTaskName(NULL));
+  auto got = scansMap.find(senderAddress.value);
+
+  if (got == scansMap.end()) {
     ScansCollection toInsert = ScansCollection();
-    toInsert.push_back({beacon, getCurrentTime()});
-    scansMap->insert({senderAddress.value, toInsert});
+    toInsert.push_back(beacon);
+    scansMap.insert({senderAddress.value, toInsert});
+    Serial.println(F("Mutex unlocked"));
+    mutex.unlock();  // libero la risorsa
     return;
   }
+
   ScansCollection* vec = &got->second;
   if ((*vec).empty()) {
-    (*vec).push_back({beacon, getCurrentTime()});
+    (*vec).push_back(beacon);
+    Serial.println(F("Mutex unlocked"));
+    mutex.unlock();  // libero la risorsa
     return;
   }
-  float lastDist = (*((*vec).end() - 1)).beacon.distance;
+
+  float lastDist = (*((*vec).end() - 1)).distance;
   if (beacon.distance < lastDist - DIST_ACCEPTANCE_INTERVAL ||
       beacon.distance > lastDist + DIST_ACCEPTANCE_INTERVAL) {
-    (*vec).push_back({beacon, getCurrentTime()});
-    Serial.println("Distanza aggiunta");
-  } else
-    Serial.println("Distanza costante");
+    (*vec).push_back(beacon);
+  }
+  Serial.println(F("Mutex unlocked"));
+  mutex.unlock();  // libero la risorsa
 }
 
 void sendCollectionToServer() {
-  Serial.println("Inside sendcollection");
-  /*for (auto b = ibeacon_scanned_list.begin();
-       b != ibeacon_scanned_list.end();) {
-    if (getCurrentTime() - (*b).lastTimestamp >= BEACON_TIMEOUT_SECONDS) {
-      Serial.print("erasing ");
-      Serial.println((*b).minor);
-      b = ibeacon_scanned_list.erase(b);
-    } else
-      ++b;
-  }*/
-
-  if (!ibeacon_scanned_list.empty()) {
-    for (int i = ibeacon_scanned_list.size() - 1; i >= 0; i--) {
-      Serial.println("visiting ");
-      Serial.println(ibeacon_scanned_list.at(i).minor);
-      if (getCurrentTime() - ibeacon_scanned_list.at(i).lastTimestamp >=
-          BEACON_TIMEOUT_SECONDS) {
-        Serial.print("erasing ");
-        Serial.println(ibeacon_scanned_list.at(i).minor);
-        ibeacon_scanned_list.erase(ibeacon_scanned_list.begin() + i);
-      }
-    }
+  while (
+      !mutex.try_lock()) {  // aspetto il momento in cui nessuno sta accedendo
+                            // alla risorsa scansMap per poterci accedere
+    delay(10);
   }
+  Serial.print(F("Mutex locked by: "));
+  Serial.println(pcTaskGetTaskName(NULL));
 
-  String JSON = "{" + JSON += "{\"eventsLog\":[";
-  auto it = scansMap->begin();
-  while (it != scansMap->end()) {
+  scansMap.swap(oldMap);  // metto la mappa in un'altra vuota e la azzero, in
+                          // modo da avere sia le letture che ho appena inviato
+                          // che una mappa vuota in cui salvare i dati che
+                          // ricevo nel frattempo che finisca la richiesta http
+
+  // Da qui in poi non uso più scansMap quindi posso liberare il mutex
+
+  Serial.println(F("Mutex unlocked"));
+  mutex.unlock();
+
+  requestUpdate.body = new String("{\"eventsLog\":[");
+  auto it = oldMap.begin();
+  while (it != oldMap.end()) {
     uint64_t senderAddress = it->first;
     Serial.println(MacAddress(senderAddress).toString());
     ScansCollection* scans = &(it->second);
     for (size_t i = 0; i < (*scans).size(); i++) {
-      char uuid[32];
-      char* json;
-      unsigned long time = getCurrentTime();
+      char uuid[36];
+      unsigned long scan_time = (*scans)[i].lastTimestamp;
       sprintf(uuid, "%x%x%x%x-%x%x-%x%x-%x%x%x%x%x%x%x%x",
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[0],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[1],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[2],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[3],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[4],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[5],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[6],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[7],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[8],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[9],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[10],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[11],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[12],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[13],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[14],
-              (unsigned char)(*scans)[i].beacon.proximity_uuid[15]);
-      char* temp = MacAddress(senderAddress).toCharArray();
-      size_t needed = snprintf(
-          NULL, 0,
-          "{\"uuidBeacon\":\"%s\",\"majorVersion\":%d,\"minorVersion\":%d,"
-          "\"idDevice\":\"%s\",\"timePosition\":%ld,\"latitudeDevice\":0."
-          "000000,\"longitudeDevice\":0.000000,\"distanceBeacon\":%.2f}",
-          uuid, (*scans)[i].beacon.major, (*scans)[i].beacon.minor, temp, time,
-          (*scans)[i].beacon.distance);
-      json = new char[needed + 1];
-      sprintf(json,
-              "{\"uuidBeacon\":\"%s\",\"majorVersion\":%d,\"minorVersion\":%d,"
-              "\"idDevice\":\"%s\",\"timePosition\":%ld,\"latitudeDevice\":0."
-              "000000,\"longitudeDevice\":0.000000,\"distanceBeacon\":%.2f}",
-              uuid, (*scans)[i].beacon.major, (*scans)[i].beacon.minor, temp,
-              time, (*scans)[i].beacon.distance);
-
-      JSON += charArrayToString(json);
-      JSON += ",";
-      delete[] json;
-      delete[] temp;
+              (unsigned char)(*scans)[i].proximity_uuid[0],
+              (unsigned char)(*scans)[i].proximity_uuid[1],
+              (unsigned char)(*scans)[i].proximity_uuid[2],
+              (unsigned char)(*scans)[i].proximity_uuid[3],
+              (unsigned char)(*scans)[i].proximity_uuid[4],
+              (unsigned char)(*scans)[i].proximity_uuid[5],
+              (unsigned char)(*scans)[i].proximity_uuid[6],
+              (unsigned char)(*scans)[i].proximity_uuid[7],
+              (unsigned char)(*scans)[i].proximity_uuid[8],
+              (unsigned char)(*scans)[i].proximity_uuid[9],
+              (unsigned char)(*scans)[i].proximity_uuid[10],
+              (unsigned char)(*scans)[i].proximity_uuid[11],
+              (unsigned char)(*scans)[i].proximity_uuid[12],
+              (unsigned char)(*scans)[i].proximity_uuid[13],
+              (unsigned char)(*scans)[i].proximity_uuid[14],
+              (unsigned char)(*scans)[i].proximity_uuid[15]);
+      *requestUpdate.body += "{\"uuidBeacon\":\"" + String(uuid) + "\",";
+      *requestUpdate.body +=
+          "\"majorVersion\":" + String((*scans)[i].major) + ",";
+      *requestUpdate.body +=
+          "\"minorVersion\":" + String((*scans)[i].minor) + ",";
+      *requestUpdate.body +=
+          "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
+      *requestUpdate.body += "\"timePosition\":" + String(scan_time) + ",";
+      *requestUpdate.body +=
+          "\"latitudeDevice\": " + String(current_configs.getX()) +
+          ", \"longitudeDevice\": " + String(current_configs.getY()) + ",";
+      *requestUpdate.body +=
+          "\"distanceBeacon\":" + String((*scans)[i].distance);
+      *requestUpdate.body += "},";
     }
     it++;
   }
-  JSON += "{}]}";
-
-  DevMap* tmp;
-  tmp = scansMap;
-  scansMap = oldMap;
-  oldMap = tmp;
-
-  // Serial.println(JSON);
-  requestUpdate.body = JSON;
-  getHttpResponse(&requestUpdate, callBack_response, &u8x8);
+  *requestUpdate.body += "{}]}";
+  Serial.println(F("About to call gethttpresponse"));
+  getHttpResponse(&requestUpdate, callBack_response);
 }
 
+// ATTENZIONE: questa funzione viene eseguita all'interno del task http anche se
+// è dichiarata qui, anche addOldMapToScansMap
+
 void callBack_response(String response) {
-  requestUpdate.body = "";
+  delete (requestUpdate.body);
+
+  if (response == "timeout") {
+    display.setRow(2, "Conn. timeout");
+    checkEccessiveTimeouts();
+    return;
+  }
+
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(response);
+
   if (!root.success()) {
     Serial.println("parseJsonObject failed");
-    addOldMapToScansMap();
+    display.setRow(2, "Conn. fallita");
+    checkEccessiveTimeouts();
+
   } else {
     const char* resultBuffer = root["MessageText"];
     String result = String(resultBuffer);
+
     if (result == "Action Completed") {
       Serial.println("Action completed");
-      eraseMap(oldMap);
+      display.setRow(2, "Op. completata");
+      eraseOldMap();
+      timeoutCount = 0;
+
     } else {
-      Serial.println("Malformad JSON");
-      addOldMapToScansMap();
+      display.setRow(2, "Conn. fallita");
+      Serial.println("Malformed JSON");
+      checkEccessiveTimeouts();
     }
   }
 }
 
-void addOldMapToScansMap() {
-  if (oldMap == NULL) return;
+void checkEccessiveTimeouts() {
+  timeoutCount++;
+  Serial.print(F("TimeoutCount: "));
+  Serial.println(timeoutCount);
+  if (timeoutCount > 2) {
+    eraseOldMap();
+    timeoutCount = 0;
+  } else
+    addOldMapToScansMap();  // se non sono riuscito a mettere i dati sul
+                            // server li reinserisco nella mappa
+}
 
-  auto it = oldMap->begin();
-  while (it != oldMap->end()) {
+void addOldMapToScansMap() {
+  auto it = oldMap.begin();
+  while (it != oldMap.end()) {
     MacAddress devMac = MacAddress(it->first);
     auto vec_it = it->second.begin();
     while (vec_it != it->second.end()) {
-      distanceScanCompletedCallback(devMac, (*vec_it).beacon);
+      distanceScanCompletedCallback(devMac, (*vec_it));
       vec_it++;
     }
     it++;
   }
-  eraseMap(oldMap);
+  eraseOldMap();
 }
 
-void eraseMap(DevMap* myMap) {
-  auto it = myMap->begin();
-  while (it != myMap->end()) {
-    it->second.erase(it->second.begin(), it->second.end());
-    it++;
-  }
-  myMap->erase(myMap->begin(), myMap->end());
+void eraseOldMap() {
+  DevMap temp;
+  oldMap.swap(temp);
 }

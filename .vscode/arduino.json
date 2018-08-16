@@ -1,0 +1,7 @@
+{
+    "board": "espressif:esp32:esp32",
+    "configuration": "PSRAM=disabled,PartitionScheme=default,FlashMode=qio,FlashFreq=80,FlashSize=4M,UploadSpeed=921600,DebugLevel=warn",
+    "port": "COM3",
+    "sketch": "localization_sensor\\localization_sensor.ino",
+    "output": "C:\\Users\\Ivano\\Documents\\loc_sen_build"
+}

@@ -4,7 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "C:\\Users\\Ivano\\Documents\\Arduino\\hardware\\espressif\\esp32\\**",
-                "C:\\Users\\Ivano\\Documents\\Arduino\\libraries\\**"
+                "C:\\Users\\Ivano\\Documents\\Arduino\\libraries\\**",
+                "C:/Users/Ivano/Documents/Arduino/hardware/espressif/esp32/tools/sdk/include/newlib",
+                "C:/Users/Ivano/Documents/Arduino/hardware/espressif/esp32/tools/xtensa-esp32-elf/xtensa-esp32-elf/include"
             ],
             "intelliSenseMode": "msvc-x64",
             "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/bin/cl.exe",
