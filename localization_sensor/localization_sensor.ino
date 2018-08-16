@@ -26,7 +26,7 @@
 // comment if device has no display
 #define HAS_DISPLAY
 
-typedef std::vector<ibeacon_instance_t> ScansCollection;
+typedef std::vector<BeaconInfo> ScansCollection;
 typedef std::unordered_map<uint64_t, ScansCollection> DevMap;
 
 DevMap scansMap;  // mappa che conterrà le scansioni dei beacon
@@ -128,7 +128,7 @@ void setup() {
   //>>>>>>>> INIZIALIZZAZIONE HTTP
   if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
     initHTTPTask();
-    initTimeSync(timeSyncedCallback);  // TODO:: decommetare
+    initTimeSync(timeSyncedCallback);
   }
   //<<<<<<<< FINE
 
@@ -186,7 +186,8 @@ void loop() {
       display.setRow(4, "Ram libera");
       delay(10);
       const char* ram = String(ESP.getFreeHeap()).c_str();
-      // Serial.println(ram);
+      Serial.print(F("Free ram: "));
+      Serial.println(ram);
       display.setRow(5, ram);
       printMACAddressToScreen(6);
       lastRamRef = millis();

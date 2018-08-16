@@ -1,5 +1,5 @@
 void distanceScanCompletedCallback(MacAddress senderAddress,
-                                   ibeacon_instance_t beacon) {
+                                   BeaconInfo beacon) {
   while (
       !mutex.try_lock()) {  // aspetto fino a quando ho l'accesso esclusivo
                             // alla risorsa: questa è una funzione che viene
@@ -29,9 +29,9 @@ void distanceScanCompletedCallback(MacAddress senderAddress,
     return;
   }
 
-  float lastDist = (*((*vec).end() - 1)).distance;
-  if (beacon.distance < lastDist - DIST_ACCEPTANCE_INTERVAL ||
-      beacon.distance > lastDist + DIST_ACCEPTANCE_INTERVAL) {
+  float lastDist = (*((*vec).end() - 1)).beacon.distance;
+  if (beacon.beacon.distance < lastDist - DIST_ACCEPTANCE_INTERVAL ||
+      beacon.beacon.distance > lastDist + DIST_ACCEPTANCE_INTERVAL) {
     (*vec).push_back(beacon);
   }
   Serial.println(F("Mutex unlocked"));
@@ -56,8 +56,8 @@ void sendCollectionToServer() {
 
   Serial.println(F("Mutex unlocked"));
   mutex.unlock();
-
-  requestUpdate.body = new String("{\"eventsLog\":[");
+  requestUpdate.body = new String("{\"idDevice\": \"" + myAddress.toString() +
+                                  "\", \"eventsLog\":[");
   auto it = oldMap.begin();
   while (it != oldMap.end()) {
     uint64_t senderAddress = it->first;
@@ -65,42 +65,43 @@ void sendCollectionToServer() {
     ScansCollection* scans = &(it->second);
     for (size_t i = 0; i < (*scans).size(); i++) {
       char uuid[36];
-      unsigned long scan_time = (*scans)[i].lastTimestamp;
+      unsigned long scan_time = (*scans)[i].beacon.lastTimestamp;
       sprintf(uuid, "%x%x%x%x-%x%x-%x%x-%x%x%x%x%x%x%x%x",
-              (unsigned char)(*scans)[i].proximity_uuid[0],
-              (unsigned char)(*scans)[i].proximity_uuid[1],
-              (unsigned char)(*scans)[i].proximity_uuid[2],
-              (unsigned char)(*scans)[i].proximity_uuid[3],
-              (unsigned char)(*scans)[i].proximity_uuid[4],
-              (unsigned char)(*scans)[i].proximity_uuid[5],
-              (unsigned char)(*scans)[i].proximity_uuid[6],
-              (unsigned char)(*scans)[i].proximity_uuid[7],
-              (unsigned char)(*scans)[i].proximity_uuid[8],
-              (unsigned char)(*scans)[i].proximity_uuid[9],
-              (unsigned char)(*scans)[i].proximity_uuid[10],
-              (unsigned char)(*scans)[i].proximity_uuid[11],
-              (unsigned char)(*scans)[i].proximity_uuid[12],
-              (unsigned char)(*scans)[i].proximity_uuid[13],
-              (unsigned char)(*scans)[i].proximity_uuid[14],
-              (unsigned char)(*scans)[i].proximity_uuid[15]);
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[0],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[1],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[2],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[3],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[4],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[5],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[6],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[7],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[8],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[9],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[10],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[11],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[12],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[13],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[14],
+              (unsigned char)(*scans)[i].beacon.proximity_uuid[15]);
       *requestUpdate.body += "{\"uuidBeacon\":\"" + String(uuid) + "\",";
       *requestUpdate.body +=
-          "\"majorVersion\":" + String((*scans)[i].major) + ",";
+          "\"majorVersion\":" + String((*scans)[i].beacon.major) + ",";
       *requestUpdate.body +=
-          "\"minorVersion\":" + String((*scans)[i].minor) + ",";
+          "\"minorVersion\":" + String((*scans)[i].beacon.minor) + ",";
       *requestUpdate.body +=
           "\"idDevice\":\"" + MacAddress(senderAddress).toString() + "\",";
       *requestUpdate.body += "\"timePosition\":" + String(scan_time) + ",";
+      *requestUpdate.body += "\"latitudeDevice\": " + String((*scans)[i].x) +
+                             ", \"longitudeDevice\": " + String((*scans)[i].y) +
+                             ",";
       *requestUpdate.body +=
-          "\"latitudeDevice\": " + String(current_configs.getX()) +
-          ", \"longitudeDevice\": " + String(current_configs.getY()) + ",";
-      *requestUpdate.body +=
-          "\"distanceBeacon\":" + String((*scans)[i].distance);
+          "\"distanceBeacon\":" + String((*scans)[i].beacon.distance);
       *requestUpdate.body += "},";
     }
     it++;
   }
   *requestUpdate.body += "{}]}";
+  // Serial.println(*requestUpdate.body);
   Serial.println(F("About to call gethttpresponse"));
   getHttpResponse(&requestUpdate, callBack_response);
 }
