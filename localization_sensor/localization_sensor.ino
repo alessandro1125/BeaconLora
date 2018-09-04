@@ -105,9 +105,9 @@ void setup() {
   DELETE_ARRAY(addrch);
   config_params_t* user_params = wifiConfig.clientListener();
   display.clear();
-  if (user_params->type == DEVICE_TYPE_INVALID) {
+  if (user_params->type == DeviceType::InvalidDevice) {
     current_configs.lockParams();
-    current_configs.getParams()->type = DEVICE_TYPE_INVALID;
+    current_configs.getParams()->type = DeviceType::InvalidDevice;
     current_configs.unlockParams();
     display.setRow(1, "Reboot ");
     display.refresh();
@@ -117,16 +117,16 @@ void setup() {
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE LORA
-  if (current_configs.getType() != DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  if (current_configs.getType() != DeviceType::AutonomousSensor)
     initLoRa(address, SS, RST, DI0);
   else
     myAddress = address;
-  if (current_configs.getType() == DEVICE_TYPE_NODE)
+  if (current_configs.getType() == DeviceType::Node)
     subscribeToReceivePacketEvent(handleResponsePacket);
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE HTTP
-  if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
+  if (current_configs.getType() != DeviceType::Sensor) {
     initHTTPTask(APP_PURPOSES::LOCATION);
     initTimeSync(timeSyncedCallback);
   }
@@ -139,7 +139,7 @@ void setup() {
     updateRSSIParams(user_params->bt_configs.referencePower,
                      user_params->bt_configs.noise);
 
-  if (user_params->type != DEVICE_TYPE_NODE) {
+  if (user_params->type != DeviceType::Node) {
     nvs_flash_init();
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
@@ -171,7 +171,7 @@ void timeSyncedCallback(bool valid) {
   watchdog.resetWatchdog();  // starting the watchdog
                              // controlling hangings of looptask
   watchdog.startWatchdog();
-  if (current_configs.getType() == DEVICE_TYPE_NODE)
+  if (current_configs.getType() == DeviceType::Node)
     xTaskCreate(loraLoopTask, "loraLoop", 5000, NULL, 5, NULL);
 }
 
@@ -189,7 +189,7 @@ void loop() {
   // delay(10);
   if (ESP.getFreeHeap() < 15000)
     ESP.restart();  // evitiamo un crash, resta piantato altrimenti
-  if (current_configs.getType() == DEVICE_TYPE_INVALID) {
+  if (current_configs.getType() == DeviceType::InvalidDevice) {
     delay(1000);
   } else {
     if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
@@ -203,7 +203,7 @@ void loop() {
       lastRamRef = millis();
     }
 
-    if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
+    if (current_configs.getType() != DeviceType::Sensor) {
       if (seconds() - nodeLastCollectionSent >=
           SERVER_UPDATE_INTERVAL_SECONDS) {
         display.clear();
@@ -223,7 +223,7 @@ void loop() {
   }
   display.refresh();
 
-  if (current_configs.getType() == DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
+  if (current_configs.getType() == DeviceType::AutonomousSensor)
     delay(5000);  // posso andare proprio tranquillo con il
                   // delay così lascio spazio al bluetooth
   /*else
