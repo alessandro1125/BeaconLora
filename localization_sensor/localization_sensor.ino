@@ -127,7 +127,7 @@ void setup() {
 
   //>>>>>>>> INIZIALIZZAZIONE HTTP
   if (current_configs.getType() != DEVICE_TYPE_TERMOMETER) {
-    initHTTPTask();
+    initHTTPTask(APP_PURPOSES::LOCATION);
     initTimeSync(timeSyncedCallback);
   }
   //<<<<<<<< FINE
@@ -171,6 +171,16 @@ void timeSyncedCallback(bool valid) {
   watchdog.resetWatchdog();  // starting the watchdog
                              // controlling hangings of looptask
   watchdog.startWatchdog();
+  if (current_configs.getType() == DEVICE_TYPE_NODE)
+    xTaskCreate(loraLoopTask, "loraLoop", 5000, NULL, 5, NULL);
+}
+
+void loraLoopTask(void* vParameters) {
+  for (;;) {
+    checkIncoming();
+    delay(5);
+  }
+  vTaskDelete(NULL);
 }
 
 void loop() {
@@ -184,7 +194,7 @@ void loop() {
   } else {
     if (millis() - lastRamRef >= RAM_REF_INTERVAL_MILLIS) {
       display.setRow(4, "Ram libera");
-      delay(10);
+      // delay(10);
       const char* ram = String(ESP.getFreeHeap()).c_str();
       Serial.print(F("Free ram: "));
       Serial.println(ram);
@@ -210,15 +220,14 @@ void loop() {
         nodeLastCollectionSent = seconds();
       }
     }
-    if (current_configs.getType() == DEVICE_TYPE_NODE) checkIncoming();
   }
   display.refresh();
 
   if (current_configs.getType() == DEVICE_TYPE_AUTONOMOUS_TERMOMETER)
     delay(5000);  // posso andare proprio tranquillo con il
                   // delay così lascio spazio al bluetooth
-  else
-    delay(100);
+  /*else
+    delay(50);*/
 }
 
 void initSPISerialAndDisplay() {
@@ -239,9 +248,11 @@ void readMacAddress() {
   address = MacAddress(mac);
 }
 
-void handleResponsePacket(Packet packet) {
+void handleResponsePacket(const Packet& packet) {
+  display.setRow(3, packet.sender.toString().c_str());
   if (isLocationScanPacket(packet.type, packet.packetLength)) {
-    packet.printPacket();
+    Serial.print(F("Packet received "));
+    Serial.println(packet.packetNumber);
     distanceScanCompletedCallback(
         packet.sender, decodeBeaconFromPacket((uint8_t*)packet.body));
   }
