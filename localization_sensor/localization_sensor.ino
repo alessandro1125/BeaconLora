@@ -184,9 +184,7 @@ void loraLoopTask(void* vParameters) {
 }
 
 void loop() {
-  // Serial.println(F("LOOP"));
   watchdog.resetWatchdog();
-  // delay(10);
   if (ESP.getFreeHeap() < 15000)
     ESP.restart();  // evitiamo un crash, resta piantato altrimenti
   if (current_configs.getType() == DeviceType::InvalidDevice) {
