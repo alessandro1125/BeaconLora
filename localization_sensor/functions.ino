@@ -1,5 +1,5 @@
-void distanceScanCompletedCallback(MacAddress senderAddress,
-                                   BeaconInfo beacon) {
+void distanceScanCompletedCallback(const MacAddress& senderAddress,
+                                   const BeaconInfo& beacon) {
   while (
       !mutex.try_lock()) {  // aspetto fino a quando ho l'accesso esclusivo
                             // alla risorsa: questa è una funzione che viene
@@ -56,8 +56,8 @@ void sendCollectionToServer() {
 
   Serial.println(F("Mutex unlocked"));
   mutex.unlock();
-  requestUpdate.body = new String("{\"idDevice\": \"" + myAddress.toString() +
-                                  "\", \"eventsLog\":[");
+  requestUpdate.body = new String(
+      "{\"idDevice\": \"" + Lora::myAddress.toString() + "\", \"eventsLog\":[");
   auto it = oldMap.begin();
   while (it != oldMap.end()) {
     uint64_t senderAddress = it->first;

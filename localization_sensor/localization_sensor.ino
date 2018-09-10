@@ -113,16 +113,16 @@ void setup() {
     display.refresh();
     return;
   }
-  initWithConfigParams(user_params, &display, true);  // dopo ci  va true
+  initWithConfigParams(user_params, &display, true);
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE LORA
   if (current_configs.getType() != DeviceType::AutonomousSensor)
-    initLoRa(address, SS, RST, DI0);
+    Lora::initLoRa(address, SS, RST, DI0);
   else
-    myAddress = address;
+    Lora::myAddress = address;
   if (current_configs.getType() == DeviceType::Node)
-    subscribeToReceivePacketEvent(handleResponsePacket);
+    Lora::subscribeToReceivePacketEvent(handleResponsePacket);
   //<<<<<<<< FINE
 
   //>>>>>>>> INIZIALIZZAZIONE HTTP
@@ -177,7 +177,7 @@ void timeSyncedCallback(bool valid) {
 
 void loraLoopTask(void* vParameters) {
   for (;;) {
-    checkIncoming();
+    Lora::checkIncoming();
     delay(5);
   }
   vTaskDelete(NULL);
@@ -246,7 +246,7 @@ void readMacAddress() {
   address = MacAddress(mac);
 }
 
-void handleResponsePacket(const Packet& packet) {
+void handleResponsePacket(const Lora::Packet& packet) {
   display.setRow(3, packet.sender.toString().c_str());
   if (isLocationScanPacket(packet.type, packet.packetLength)) {
     Serial.print(F("Packet received "));
