@@ -1,4 +1,17 @@
-//#include <Arduino.h>
+
+///////////////////////////////////////////////
+
+// Se si hanno problemi di caricamento "Sketch too big" occorre modificare le
+// dimensioni delle partizioni come descritto in questo forum
+// https://github.com/nkolban/esp32-snippets/issues/441#issuecomment-375795379
+// con la differenza che in "boards.txt" contenuta in
+// Arduino\hardware\espressif\esp32.
+// occorre modificare la riga con
+// xxxx.upload.maximum_size dove xxxx è il nome della board per cui si sta
+// compilando lo sketch
+
+///////////////////////////////////////////////
+
 #include <FreeRTOS.h>
 #include <mutex>  // std::mutex
 #include <unordered_map>
