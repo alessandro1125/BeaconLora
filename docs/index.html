@@ -60,32 +60,39 @@
 <p>Questo è un sensore che ha la possibilità di essere connesso alla rete wifi e quindi può inoltrare autonomamente i dati raccolti al server, senza la necessità di passare attraverso un nodo.</p>
 <h2 id="localizzazione-bluetooth">Localizzazione bluetooth</h2>
 <p>I dispositivi utilizzano la tecnologia BLE (bluetooth low energy) per ricevere i pacchetti di advertising dai beacon ed utilizzano il valore di RSSI letto dal pacchetto per effettuare una stima della distanza. La formula per il calcolo della distanza è:</p>
-<p><span class="math display">\[RSSI(d) = RSSI(d_0) - 10nlog_{10}\left(\frac{d}{d_0}\right)\]</span></p>
-<p>Dove <span class="math inline">\(RSSI(d)\)</span> è il valore di RSSI letto dal pacchetto BLE, <span class="math inline">\(RSSI(d_0)\)</span> è il valore di RSSI che si leggerebbe se il beacon fosse alla distanza <span class="math inline">\(d_0\)</span>, detta <strong>distanza di riferimento</strong>, che può essere scelta arbitrariamente, ed <span class="math inline">\(n\)</span> è un coefficiente che rappresenta il livello di rumore dell’ambiente in cui si svolge la misurazione.</p>
-<p>Ponendo <span class="math inline">\(d_0 = 1\text{m}\)</span> e defienendo <span class="math inline">\(RSSI(1\text{m}) = A\)</span>, la formula iniziale può essere ridotta a: <span class="math display">\[RSSI(d) = A - 10nlog_{10}(d)\]</span></p>
+<p><span class="math display">\[RSSI(d) = RSSI(d_0) - 10 \eta log_{10}\left(\frac{d}{d_0}\right)\]</span></p>
+<p>Dove <span class="math inline">\(RSSI(d)\)</span> è il valore di RSSI letto dal pacchetto BLE, <span class="math inline">\(RSSI(d_0)\)</span> è il valore di RSSI che si leggerebbe se il beacon fosse alla distanza <span class="math inline">\(d_0\)</span>, detta <strong>distanza di riferimento</strong>, che può essere scelta arbitrariamente, ed <span class="math inline">\(\eta\)</span> è un coefficiente che rappresenta il livello di rumore dell’ambiente in cui si svolge la misurazione.</p>
+<p>Ponendo <span class="math inline">\(d_0 = 1\text{m}\)</span> e defienendo <span class="math inline">\(RSSI(1\text{m}) = A\)</span>, la formula iniziale può essere ridotta a: <span class="math display">\[RSSI(d) = A - 10 \eta log_{10}(d)\]</span></p>
 <p>Questa formula poi può essere invertita per ottenere la distanza:</p>
 <p><span class="math display">\[ 
-d = 10^{\dfrac{A-RSSI(d)}{10n}}\]</span></p>
-<p>Per poter applicare questa dormula è necessario conoscere i valori di <span class="math inline">\(A\)</span> ed <span class="math inline">\(n\)</span>. Tali valori possono essere ottenuti empiricamente se si utlizzano tre dispositivi capaci di emettere e ricevere pacchetti BLE:</p>
+d = 10^{\dfrac{A-RSSI(d)}{10 \eta }}\]</span></p>
+<hr />
+<p>Un metodo alternativo per calcolare i valori di <span class="math inline">\(A\)</span> ed <span class="math inline">\(\eta\)</span> consiste nel posizionare un dispositivo, dal quale si possono leggere i dati ricevuti, ad un metro da un beacon ed effettuare una rilevazione del valore di RSSI di un numero significativo di messaggi (es: 100) ed effettuarne una media. Il valore ottenuto può essere assegnato ad <span class="math inline">\(A\)</span>.<br />
+Per calcolare <span class="math inline">\(\eta\)</span> invece, occorre rifare lo stesso esperimento ma mettendo il beacon a distanze diverse (es: 2m, 3m, 4m, 5m) in modo da ottenere una media del valore di RSSI dei messaggi per ogni distanza. Occorre poi inserire, uno alla volta, i valori trovati nella formula inversa della distanza, cioè: <span class="math display">\[
+    \eta = \dfrac{A - RSSI}{10 log_{10}(d)}
+\]</span> dove <span class="math inline">\(A\)</span> è il valore calcolato nel primo esperimento, <span class="math inline">\(RSSI\)</span> è il valore di RSSI ottenuto per la distanza e <span class="math inline">\(d\)</span> è la distanza a cui si trovava il dilspositivo dal beacon.</p>
+<p>Alla fine di questo processo si sono ottenuti tanti valori di <span class="math inline">\(\eta\)</span> tante quante sono le distanze da cui si è campionato il valore di RSSI e, se tutto è andato bene tali valori non dovrebbero essere molto diversi l’uno dall’altro. Il valore finale di <span class="math inline">\(\eta\)</span> è dato dalla media di tutti i valori trovati.</p>
+<p>Un metodo alternativo per calcolare i valori di <span class="math inline">\(A\)</span> ed <span class="math inline">\(\eta\)</span> utlizza tre dispositivi capaci di emettere e ricevere pacchetti BLE:</p>
 <ol type="1">
 <li>Si posiziona un dispositivo, dal quale poi si leggeranno i risultati ottenuti, in un punto arbitrario e gli altri 2 a due distanze conosciute dal primo dispositivo, necessariamente diverse fra di loro.</li>
 <li>Si misurano i valori di RSSI letti dal primo dispositivo alla ricezione dei pacchetti degli altri due dispositivi. Per avere un valore attendibile è bene raccogliere un campione significativo di misurazioni RSSI, per cercare di attenuare l’errore casuale sulla misurazione.</li>
 <li>Dalle misurazioni RSSI ottenute si ricava la media, una per dispositivo, e si assume che quel dato sia il valore di RSSI che si riceverà dai beacon alla stessa distanza</li>
 </ol>
-<p>Avendo ora disponibili due valori di distanza e due valori di RSSI è possibile risolvere il seguente sistema per ricavare le due incognite <span class="math inline">\(A\)</span> ed <span class="math inline">\(n\)</span>:</p>
+<p>Avendo ora disponibili due valori di distanza e due valori di RSSI è possibile risolvere il seguente sistema per ricavare le due incognite <span class="math inline">\(A\)</span> ed <span class="math inline">\(\eta\)</span>:</p>
 <p>Definendo <span class="math inline">\(d_1\)</span> la distanza a cui si trova il primo dispositivo, <span class="math inline">\(d_2\)</span> la distanza a cui si trova il secondo , <span class="math inline">\(R_1\)</span> il valore di RSSI dal primo e <span class="math inline">\(R_2\)</span> il valore di RSSI del secondo si ottiene:</p>
 <p><span class="math display">\[ \begin{cases}
-    R_1 = A - 10nlog_{10}d_1\\
-    R_2 = A - 10nlog_{10}d_2
+    R_1 = A - 10 \eta log_{10}d_1\\
+    R_2 = A - 10 \eta log_{10}d_2
     \end{cases} \]</span></p>
-<p>Che può essere risolto per <span class="math inline">\(n\)</span> ed <span class="math inline">\(A\)</span>:</p>
+<p>Che può essere risolto per <span class="math inline">\(\eta\)</span> ed <span class="math inline">\(A\)</span>:</p>
 <p><span class="math display">\[ 
     \begin{cases}
-    n = \dfrac{R_1-R_2}{10log_{10}\frac{d_2}{d_1}}\\
+    \eta = \dfrac{R_1-R_2}{10log_{10}\frac{d_2}{d_1}}\\
     A = R_2 + \dfrac{R_1-R_2}{log_{10}\frac{d_2}{d_1}}log_{10}d2
     \end{cases} 
 \]</span></p>
 <p>Avendo ora trovato le due incognite è possibile utilizzarle per il calcolo della distanza dei beacon.</p>
+<hr />
 <p>Per poter effettuare una stima attendibile della distanza a cui si trova un beacon occorre effettuare più misurazioni ed aggregarle per cercare di eliminare gli errori casuali nella lettura dei valori di RSSI ricevuti. Empiricamente si è osservato che la media delle misure può fornire un valore fuorviante perchè la media viene influenzata in misura sensibile dagli estremi del range di valori considerato. Per un oggetto statico un buon indicatore di quale sia il valore reale di RSSI è risultato essere la moda delle misurazioni effettuate ma, per un oggetto in movimento, la moda delle misurazioni perde di significato. Pertanto si propone l’utilizzo di una media calcolata scartando una percentuale di misurazioni agli estremi, ad esempio un 10%.</p>
 <p>Al momento vengono aggregate 30 misurazioni consecutive per beacon che, con un periodo di trasmissione del beacon di un secondo, spazia un intervallo di 30 secondi.</p>
 <h2 id="realizzazione-del-sistema">Realizzazione del sistema</h2>

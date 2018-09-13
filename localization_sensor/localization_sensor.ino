@@ -99,10 +99,10 @@ void setup() {
   wifiConfig.setDeviceMode(APP_PURPOSES::LOCATION);
   Serial.println(F("Purpose set"));
 
-  char* addrch = address.toCharArray();
-  Serial.println(String(addrch));
-  wifiConfig.init(&config_params, addrch, &display);
-  DELETE_ARRAY(addrch);
+  std::unique_ptr<char[]> addrch = address.toCharArray();
+  Serial.println(String(addrch.get()));
+  wifiConfig.init(&config_params, addrch.get(), &display);
+  // DELETE_ARRAY(addrch);
   config_params_t* user_params = wifiConfig.clientListener();
   display.clear();
   if (user_params->type == DeviceType::InvalidDevice) {
@@ -257,10 +257,10 @@ void handleResponsePacket(const Lora::Packet& packet) {
 }
 
 void printMACAddressToScreen(int baseRow) {
-  char* mc = address.toCharArray();
+  std::unique_ptr<char[]> mc = address.toCharArray();
   display.setRow(baseRow, "MAC");
-  display.setRow(baseRow + 1, mc);
-  DELETE_ARRAY(mc);
+  display.setRow(baseRow + 1, mc.get());
+  // DELETE_ARRAY(mc);
 }
 
 void ble_ibeacon_init(void) {

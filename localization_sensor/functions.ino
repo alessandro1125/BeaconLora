@@ -109,7 +109,7 @@ void sendCollectionToServer() {
 // ATTENZIONE: questa funzione viene eseguita all'interno del task http anche se
 // è dichiarata qui, anche addOldMapToScansMap
 
-void callBack_response(String response) {
+void callBack_response(const String& response) {
   delete (requestUpdate.body);
 
   if (response == "timeout") {
